@@ -1,0 +1,273 @@
+@import "tailwindcss";
+
+/* ============================================
+   NEXUS DESIGN SYSTEM - Global Styles
+   ============================================ */
+
+:root {
+  /* Default theme values (Nexus) - overridden by ThemeProvider */
+  --color-bg-primary: #0a0a0a;
+  --color-bg-secondary: #141414;
+  --color-bg-tertiary: #1a1a1a;
+  --color-bg-glass: rgba(20, 20, 20, 0.85);
+  --color-bg-hover: #1a1a1a;
+  --color-bg-active: #222222;
+
+  --color-fg-primary: #ffffff;
+  --color-fg-secondary: #a0a0a0;
+  --color-fg-muted: #666666;
+
+  --color-accent: #3b82f6;
+  --color-accent-hover: #60a5fa;
+  --color-accent-muted: rgba(59, 130, 246, 0.3);
+
+  --color-success: #22c55e;
+  --color-success-muted: rgba(34, 197, 94, 0.1);
+  --color-warning: #f59e0b;
+  --color-warning-muted: rgba(245, 158, 11, 0.1);
+  --color-error: #ef4444;
+  --color-error-muted: rgba(239, 68, 68, 0.1);
+
+  --color-border: #2a2a2a;
+  --color-border-hover: #3a3a3a;
+  --color-border-focus: #3b82f6;
+
+  --color-selection: rgba(59, 130, 246, 0.3);
+  --color-scrollbar-thumb: #2a2a2a;
+  --color-scrollbar-thumb-hover: #3a3a3a;
+
+  --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'SF Mono', 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  --font-size-base: 13px;
+  --line-height: 1.5;
+
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 12px;
+  --spacing-lg: 16px;
+  --spacing-xl: 24px;
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-full: 9999px;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.5);
+  --shadow-glow: none;
+
+  --motion-fast: 0.1s;
+  --motion-normal: 0.15s;
+  --motion-slow: 0.3s;
+  --motion-easing: ease;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  height: 100vh;
+  width: 100vw;
+  background-color: var(--color-bg-primary);
+  color: var(--color-fg-primary);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ============================================
+   Typography - Global H Tags
+   ============================================ */
+
+h1, h2, h3, h4, h5, h6 {
+  margin: 0;
+  padding: 0;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+h1 { font-size: 24px; line-height: 1.2; }
+h2 { font-size: 18px; line-height: 1.3; }
+h3 { font-size: 14px; line-height: 1.4; }
+h4 { font-size: 12px; line-height: 1.4; }
+h5 { font-size: 11px; line-height: 1.4; text-transform: uppercase; letter-spacing: 0.05em; }
+h6 { font-size: 10px; line-height: 1.4; text-transform: uppercase; letter-spacing: 0.08em; }
+
+p {
+  margin: 0;
+  padding: 0;
+}
+
+/* ============================================
+   Panel Headers - Consistent Style
+   ============================================ */
+
+.panel-header {
+  height: 40px;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-secondary);
+  flex-shrink: 0;
+}
+
+.panel-header-title {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--color-fg-muted);
+}
+
+.panel-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ============================================
+   Icon Buttons - Consistent Style
+   ============================================ */
+
+.icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  color: var(--color-fg-muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all var(--motion-normal) var(--motion-easing);
+}
+
+.icon-btn:hover {
+  background: var(--color-bg-tertiary);
+  color: var(--color-fg-secondary);
+}
+
+.icon-btn:active {
+  background: var(--color-bg-active);
+}
+
+.icon-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* ============================================
+   Status Badges - Consistent Style
+   ============================================ */
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  border: 1px solid;
+  white-space: nowrap;
+}
+
+.status-badge-default {
+  background: var(--color-bg-tertiary);
+  border-color: var(--color-border);
+  color: var(--color-fg-muted);
+}
+
+.status-badge-default:hover {
+  border-color: var(--color-accent);
+}
+
+.status-badge-success {
+  background: var(--color-success-muted);
+  border-color: var(--color-success);
+  color: var(--color-success);
+}
+
+.status-badge-warning {
+  background: var(--color-warning-muted);
+  border-color: var(--color-warning);
+  color: var(--color-warning);
+}
+
+.status-badge-danger {
+  background: var(--color-error-muted);
+  border-color: var(--color-error);
+  color: var(--color-error);
+}
+
+.status-badge svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* ============================================
+   Dividers
+   ============================================ */
+
+.divider-v {
+  width: 1px;
+  height: 16px;
+  background: var(--color-border);
+  margin: 0 4px;
+}
+
+/* ============================================
+   Custom Scrollbar
+   ============================================ */
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-scrollbar-thumb);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-scrollbar-thumb-hover);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* ============================================
+   Selection
+   ============================================ */
+
+::selection {
+  background: var(--color-selection);
+  color: var(--color-fg-primary);
+}
+
+/* ============================================
+   Code / Monospace
+   ============================================ */
+
+code, pre, .font-mono {
+  font-family: var(--font-mono);
+}
