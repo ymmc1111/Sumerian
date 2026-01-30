@@ -14,5 +14,8 @@
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "jsx": "react-jsx"
-  }
+  },
+  "include": [
+    "src/**/*"
+  ]
 }

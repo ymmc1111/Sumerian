@@ -16,6 +16,8 @@ const ShortcutsHelp: React.FC = () => {
                 { keys: ['⌘', ','], action: 'Open Settings' },
                 { keys: ['⌘', 'Shift', 'P'], action: 'Command Palette' },
                 { keys: ['⌘', '/'], action: 'Show Keyboard Shortcuts' },
+                { keys: ['@'], action: 'Reference File in Chat' },
+                { keys: ['/'], action: 'Agent Slash Commands' },
             ]
         },
         {
@@ -31,6 +33,7 @@ const ShortcutsHelp: React.FC = () => {
             shortcuts: [
                 { keys: ['⌘', '`'], action: 'Toggle Terminal' },
                 { keys: ['⌘', 'Shift', 'B'], action: 'Toggle Brave Mode' },
+                { keys: ['⌘', 'Shift', 'A'], action: 'Focus Agent Input' },
             ]
         }
     ];

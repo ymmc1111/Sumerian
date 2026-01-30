@@ -12,12 +12,14 @@ import { TerminalManager } from '../terminal/TerminalManager';
 import { LoreManager } from '../context/LoreManager';
 import { windowManager } from '../windows/WindowManager';
 import { PanelType } from '../../renderer/types/layout';
+import { SessionManager, SessionData } from '../sessions/SessionManager';
 
 const fileService = new FileService();
 const credentialManager = new CredentialManager();
 const oauthBridge = new OAuthBridge();
 const terminalManager = new TerminalManager();
 let cliManager: CLIManager | null = null;
+let sessionManager: SessionManager | null = null;
 
 const RECENT_PROJECTS_FILE = path.join(app.getPath('home'), '.sumerian', 'recent-projects.json');
 const PREFERENCES_FILE = path.join(app.getPath('home'), '.sumerian', 'preferences.json');
@@ -136,6 +138,17 @@ export function setupHandlers() {
         return true;
     });
 
+    ipcMain.handle('cli:setModel', async (_event, model: string) => {
+        if (!cliManager) return false;
+        cliManager.setModel(model);
+        return true;
+    });
+
+    ipcMain.handle('cli:listModels', async () => {
+        if (!cliManager) return [];
+        return await cliManager.listModels();
+    });
+
     ipcMain.handle('cli:getStatus', async () => {
         return cliManager ? cliManager.getStatus() : ConnectionStatus.DISCONNECTED;
     });
@@ -155,11 +168,39 @@ export function setupHandlers() {
         return true;
     });
 
+    ipcMain.handle('session:save', async (_event, data: SessionData) => {
+        if (!sessionManager) return false;
+        await sessionManager.saveSession(data);
+        return true;
+    });
+
+    ipcMain.handle('session:load', async (_event, id: string) => {
+        if (!sessionManager) return null;
+        return await sessionManager.loadSession(id);
+    });
+
+    ipcMain.handle('session:getLatestId', async () => {
+        if (!sessionManager) return null;
+        return await sessionManager.getLatestSessionId();
+    });
+
+    ipcMain.handle('session:list', async () => {
+        if (!sessionManager) return [];
+        return await sessionManager.listSessions();
+    });
+
+    ipcMain.handle('session:delete', async (_event, id: string) => {
+        if (!sessionManager) return false;
+        await sessionManager.deleteSession(id);
+        return true;
+    });
+
     ipcMain.handle('project:open', async (event, projectPath: string) => {
         const webContents = event.sender;
 
         fileService.setProjectRoot(projectPath);
         await addRecentProject(projectPath);
+        sessionManager = new SessionManager(projectPath);
 
         if (cliManager) {
             cliManager.kill();
@@ -180,6 +221,39 @@ export function setupHandlers() {
                 if (!webContents.isDestroyed()) {
                     webContents.send('cli:status-change', status);
                 }
+            }
+        });
+
+        // Wire up parser events for typed IPC channels
+        const parser = cliManager.getParser();
+
+        parser.on('assistantText', (text: string, isStreaming: boolean) => {
+            if (!webContents.isDestroyed()) {
+                webContents.send('cli:assistant-message', { text, isStreaming });
+            }
+        });
+
+        parser.on('toolUse', (name: string, id: string, input: Record<string, unknown>) => {
+            if (!webContents.isDestroyed()) {
+                webContents.send('cli:tool-action', { type: 'use', name, id, input });
+            }
+        });
+
+        parser.on('toolResult', (id: string, content: string, isError: boolean) => {
+            if (!webContents.isDestroyed()) {
+                webContents.send('cli:tool-action', { type: 'result', id, content, isError });
+            }
+        });
+
+        parser.on('complete', (result: string, usage?: { input: number; output: number }) => {
+            if (!webContents.isDestroyed()) {
+                webContents.send('cli:status', { status: 'complete', result, usage });
+            }
+        });
+
+        parser.on('error', (type: string, message: string) => {
+            if (!webContents.isDestroyed()) {
+                webContents.send('cli:status', { status: 'error', type, message });
             }
         });
 
@@ -230,6 +304,11 @@ export function setupHandlers() {
     ipcMain.handle('file:list', async (_event, path: string) => {
         return await fileService.list(path);
     });
+
+    ipcMain.handle('file:saveImage', async (_event, { path, base64Data }: { path: string, base64Data: string }) => {
+        return await fileService.saveImage(path, base64Data);
+    });
+
 
     ipcMain.handle('file:delete', async (_event, path: string) => {
         return await fileService.delete(path);
@@ -292,7 +371,7 @@ export function setupHandlers() {
 
     // State sync for multi-window support
     let sharedState: any = {};
-    
+
     ipcMain.handle('state:set', async (_event, { key, data }) => {
         sharedState[key] = data;
         // Broadcast to all windows
@@ -302,11 +381,11 @@ export function setupHandlers() {
             }
         });
     });
-    
+
     ipcMain.handle('state:get', async (_event, key: string) => {
         return sharedState[key];
     });
-    
+
     ipcMain.handle('state:getAll', async () => {
         return sharedState;
     });

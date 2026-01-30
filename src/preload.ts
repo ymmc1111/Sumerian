@@ -21,10 +21,30 @@ contextBridge.exposeInMainWorld('sumerian', {
             return () => ipcRenderer.removeAllListeners('cli:exit');
         },
         updateActiveFileContext: (path: string | null) => ipcRenderer.invoke('cli:updateActiveFileContext', path),
+        onAssistantMessage: (callback: (data: { text: string; isStreaming: boolean }) => void) => {
+            ipcRenderer.on('cli:assistant-message', (_event, value) => callback(value));
+            return () => ipcRenderer.removeAllListeners('cli:assistant-message');
+        },
+        onToolAction: (callback: (data: { type: 'use' | 'result'; name?: string; id: string; input?: Record<string, unknown>; content?: string; isError?: boolean }) => void) => {
+            const handler = (_event: any, value: any) => callback(value);
+            ipcRenderer.on('cli:tool-action', handler);
+            return () => ipcRenderer.removeListener('cli:tool-action', handler);
+        },
+        onAgentStatus: (callback: (data: { status: string; result?: string; usage?: { input: number; output: number }; type?: string; message?: string }) => void) => {
+            ipcRenderer.on('cli:status', (_event, value) => callback(value));
+            return () => ipcRenderer.removeAllListeners('cli:status');
+        },
+        setModel: (model: string) => ipcRenderer.invoke('cli:setModel', model),
+        listModels: () => ipcRenderer.invoke('cli:listModels'),
     },
     session: {
         getStatus: () => ipcRenderer.invoke('session:getStatus'),
         login: () => ipcRenderer.invoke('session:login'),
+        save: (data: any) => ipcRenderer.invoke('session:save', data),
+        load: (id: string) => ipcRenderer.invoke('session:load', id),
+        getLatestId: () => ipcRenderer.invoke('session:getLatestId'),
+        list: () => ipcRenderer.invoke('session:list'),
+        delete: (id: string) => ipcRenderer.invoke('session:delete', id),
     },
     project: {
         open: (path: string) => ipcRenderer.invoke('project:open', path),
@@ -61,6 +81,7 @@ contextBridge.exposeInMainWorld('sumerian', {
             ipcRenderer.on('file:changed', (_event, value) => callback(value));
             return () => ipcRenderer.removeAllListeners('file:changed');
         },
+        saveImage: (path: string, base64Data: string) => ipcRenderer.invoke('file:saveImage', { path, base64Data }),
     },
     lore: {
         list: (projectPath: string) => ipcRenderer.invoke('lore:list', projectPath),
@@ -70,12 +91,12 @@ contextBridge.exposeInMainWorld('sumerian', {
         set: (prefs: any) => ipcRenderer.invoke('preferences:set', prefs),
     },
     window: {
-        detachPanel: (panelType: string, bounds?: { x: number; y: number; width: number; height: number }) => 
+        detachPanel: (panelType: string, bounds?: { x: number; y: number; width: number; height: number }) =>
             ipcRenderer.invoke('window:detach-panel', { panelType, bounds }),
         reattachPanel: (windowId: string) => ipcRenderer.invoke('window:reattach-panel', windowId),
         getDetachedPanels: () => ipcRenderer.invoke('window:get-detached-panels'),
         focus: (windowId: string) => ipcRenderer.invoke('window:focus', windowId),
-        moveToScreen: (windowId: string, screenIndex: number) => 
+        moveToScreen: (windowId: string, screenIndex: number) =>
             ipcRenderer.invoke('window:move-to-screen', { windowId, screenIndex }),
         getScreens: () => ipcRenderer.invoke('window:get-screens'),
         onPanelClosed: (callback: (data: { id: string; panelType: string }) => void) => {

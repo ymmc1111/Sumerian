@@ -21,6 +21,7 @@ export interface Message {
     content: string;
     timestamp: number;
     status: 'pending' | 'sent' | 'error';
+    images?: string[]; // Array of file paths or base64
 }
 
 export interface LoreFile {
@@ -29,12 +30,51 @@ export interface LoreFile {
     content: string;
 }
 
+export type AgentStreamStatus = 'idle' | 'thinking' | 'streaming' | 'tool_use';
+export type AgentMode = 'chat' | 'code';
+
+export interface ToolAction {
+    id: string;
+    name: string;
+    input: Record<string, unknown>;
+    timestamp: number;
+    status: 'running' | 'success' | 'error';
+    resultSummary?: string;
+    beforeContent?: string;
+    afterContent?: string;
+}
+
 export interface AgentState {
     status: 'connected' | 'disconnected' | 'connecting' | 'error';
+    sessionId: string;
+    model: string;
     messages: Message[];
     braveMode: boolean;
     loreFiles: LoreFile[];
     activeFileContext: string | null;
+    autoContextEnabled: boolean;
+    streamStatus: AgentStreamStatus;
+    currentToolName: string | null;
+    toolActions: ToolAction[];
+    healingLoopActive: boolean;
+    healingIteration: number;
+    maxHealingIterations: number;
+    lastHealingError: string | null;
+    pinnedFiles: string[];
+    lastTerminalError: string | null;
+    usage: {
+        input: number;
+        output: number;
+    } | null;
+    mode: AgentMode;
+    availableModels: CLIModel[];
+}
+
+export interface CLIModel {
+    id: string;
+    name: string;
+    description: string;
+    default?: boolean;
 }
 
 export interface TerminalInstance {
@@ -57,6 +97,7 @@ export interface UIState {
         theme: 'dark';
         braveModeByDefault: boolean;
         isSettingsOpen: boolean;
+        terminalMirroring: 'none' | 'raw' | 'formatted';
     };
 }
 
@@ -106,18 +147,29 @@ export interface AppState {
     saveFile: (id: string) => Promise<void>;
 
     // Agent Actions
-    sendMessage: (content: string) => Promise<void>;
+    sendMessage: (content: string, images?: string[]) => Promise<void>;
     addAgentMessage: (content: string) => void;
     updateLastAgentMessage: (content: string) => void;
     setAgentStatus: (status: AgentState['status']) => void;
     setBraveMode: (enabled: boolean) => void;
+    setModel: (model: string) => void;
+    setMode: (mode: AgentMode) => void;
+    setAutoContextEnabled: (enabled: boolean) => void;
     clearHistory: () => void;
     refreshLore: () => Promise<void>;
+    setStreamStatus: (status: AgentStreamStatus, toolName?: string | null) => void;
+    addToolAction: (name: string, id: string, input: Record<string, unknown>) => void;
+    updateToolActionStatus: (id: string, status: 'success' | 'error', resultSummary?: string) => void;
 
     updateActiveFileContext: (path: string | null) => void;
+    interruptHealingLoop: () => void;
+    pruneHistory: () => void;
+    toggleFilePin: (path: string) => void;
+    clearTerminalError: () => void;
 
+    saveSession: () => Promise<void>;
+    loadSession: (id: string) => Promise<void>;
+    listSessions: () => Promise<any[]>;
+    refreshModels: () => Promise<void>;
     init: () => void;
 }
-
-
-

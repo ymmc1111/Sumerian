@@ -63,7 +63,8 @@ const CommandPalette: React.FC = () => {
     return (
         <div className="fixed inset-0 z-[150] flex items-start justify-center pt-24 p-4 bg-black/40 backdrop-blur-[2px] animate-in fade-in duration-200" onClick={toggleCommandPalette}>
             <div
-                className="w-full max-w-xl bg-nexus-bg-secondary border border-nexus-border rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-top-4 duration-200"
+                className="w-full max-w-xl bg-nexus-bg-secondary backdrop-blur-2xl border border-nexus-border rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-top-4 duration-200"
+                style={{ backgroundColor: 'var(--color-bg-secondary)' }}
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Search Input */}
@@ -97,8 +98,8 @@ const CommandPalette: React.FC = () => {
                                     onClick={() => { cmd.action(); toggleCommandPalette(); }}
                                     onMouseEnter={() => setSelectedIndex(index)}
                                     className={`w-full flex items-center justify-between px-3 py-3 rounded-xl transition-all ${index === selectedIndex
-                                            ? 'bg-nexus-accent text-white shadow-lg'
-                                            : 'text-nexus-fg-secondary hover:bg-nexus-bg-tertiary'
+                                        ? 'bg-nexus-accent text-white shadow-lg'
+                                        : 'text-nexus-fg-secondary hover:bg-nexus-bg-tertiary'
                                         }`}
                                 >
                                     <div className="flex items-center text-left">

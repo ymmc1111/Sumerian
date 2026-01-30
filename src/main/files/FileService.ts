@@ -106,6 +106,21 @@ export class FileService implements IFileService {
         }
     }
 
+    async saveImage(filePath: string, base64Data: string): Promise<string> {
+        try {
+            const dir = path.dirname(filePath);
+            await fs.mkdir(dir, { recursive: true });
+
+            const buffer = Buffer.from(base64Data, 'base64');
+            await fs.writeFile(filePath, buffer);
+
+            return filePath;
+        } catch (error) {
+            console.error(`Error saving image to ${filePath}:`, error);
+            throw error;
+        }
+    }
+
     async list(dirPath: string): Promise<FileEntry[]> {
         // ... (list implementation remains similar but could also use sandbox check)
         return this._list(dirPath);
@@ -231,7 +246,7 @@ export class FileService implements IFileService {
         watcher.on('unlink', (filePath) => callback({ path: filePath, type: 'delete' }));
         watcher.on('addDir', (filePath) => callback({ path: filePath, type: 'create' }));
         watcher.on('unlinkDir', (filePath) => callback({ path: filePath, type: 'delete' }));
-        
+
         watcher.on('error', (error: Error) => {
             console.error('File watcher error:', error.message);
             // Don't crash on EMFILE - just log and continue with reduced watching

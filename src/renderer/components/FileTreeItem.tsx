@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChevronRight, ChevronDown } from 'lucide-react';
+import { ChevronRight, ChevronDown, Pin } from 'lucide-react';
 import { FileNode } from '../stores/types';
 import { useAppStore } from '../stores/useAppStore';
 import FileIcon from './FileIcon';
@@ -11,9 +11,9 @@ interface FileTreeItemProps {
 
 const FileTreeItem: React.FC<FileTreeItemProps> = ({ node, level }) => {
     const [isOpen, setIsOpen] = useState(false);
-    const { openFile, editor } = useAppStore();
+    const { openFile, editor, agent, toggleFilePin } = useAppStore();
     const { activeFileId } = editor;
-
+    const isPinned = agent.pinnedFiles.includes(node.path);
 
     const handleClick = (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -24,12 +24,17 @@ const FileTreeItem: React.FC<FileTreeItemProps> = ({ node, level }) => {
         }
     };
 
+    const handlePin = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        toggleFilePin(node.path);
+    };
+
     const isActive = activeFileId === node.path;
 
     return (
         <div>
             <div
-                className={`flex items-center py-1 px-4 cursor-pointer hover:bg-nexus-bg-tertiary text-xs group ${isActive ? 'bg-nexus-bg-tertiary border-l-2 border-nexus-accent' : ''
+                className={`flex items-center py-1 px-4 cursor-pointer hover:bg-nexus-bg-tertiary text-xs group relative ${isActive ? 'bg-nexus-bg-tertiary border-l-2 border-nexus-accent' : ''
                     }`}
                 style={{ paddingLeft: `${(level * 12) + 16}px` }}
                 onClick={handleClick}
@@ -40,9 +45,19 @@ const FileTreeItem: React.FC<FileTreeItemProps> = ({ node, level }) => {
                     )}
                 </div>
                 <FileIcon name={node.name} isDirectory={node.isDirectory} isOpen={isOpen} className="w-3.5 h-3.5 mr-2 shrink-0" />
-                <span className={`truncate ${isActive ? 'text-nexus-fg-primary font-medium' : 'text-nexus-fg-secondary group-hover:text-nexus-fg-primary'}`}>
+                <span className={`truncate flex-1 ${isActive ? 'text-nexus-fg-primary font-medium' : 'text-nexus-fg-secondary group-hover:text-nexus-fg-primary'}`}>
                     {node.name}
                 </span>
+
+                {!node.isDirectory && (
+                    <button
+                        onClick={handlePin}
+                        className={`p-1 rounded hover:bg-nexus-bg-secondary transition-all ${isPinned ? 'opacity-100 text-nexus-accent' : 'opacity-0 group-hover:opacity-100 text-nexus-fg-muted hover:text-nexus-fg-primary'}`}
+                        title={isPinned ? "Unpin from context" : "Pin to context"}
+                    >
+                        <Pin className={`w-3 h-3 ${isPinned ? 'fill-current' : ''}`} />
+                    </button>
+                )}
             </div>
 
             {node.isDirectory && isOpen && node.children && (

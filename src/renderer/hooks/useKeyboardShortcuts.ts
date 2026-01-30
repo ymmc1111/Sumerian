@@ -44,6 +44,27 @@ export const useKeyboardShortcuts = () => {
                 useAppStore.getState().toggleShortcutsHelp();
             }
 
+            // Cmd + Shift + A to focus agent input
+            if (e.metaKey && e.shiftKey && e.key.toLowerCase() === 'a') {
+                e.preventDefault();
+                const input = document.getElementById('agent-chat-input');
+                if (input) {
+                    input.focus();
+                }
+            }
+
+            // Escape to close active UI or focus editor
+            if (e.key === 'Escape') {
+                const state = useAppStore.getState();
+                if (state.ui.settings.isSettingsOpen) {
+                    state.toggleSettings();
+                } else if (state.ui.isCommandPaletteOpen) {
+                    state.toggleCommandPalette();
+                } else if (state.ui.isShortcutsHelpOpen) {
+                    state.toggleShortcutsHelp();
+                }
+            }
+
             // Cmd + \ to cycle layout mode
             if ((e.metaKey || e.ctrlKey) && e.key === '\\') {
                 e.preventDefault();

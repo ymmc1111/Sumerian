@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { AppState, FileNode, OpenFile } from './types';
+import { AppState, FileNode, OpenFile, AgentStreamStatus, ToolAction } from './types';
 
 
 export const useAppStore = create<AppState>()(
@@ -21,6 +21,7 @@ export const useAppStore = create<AppState>()(
                     theme: 'dark' as const,
                     braveModeByDefault: false,
                     isSettingsOpen: false,
+                    terminalMirroring: 'formatted' as const,
                 },
             },
             project: {
@@ -34,10 +35,25 @@ export const useAppStore = create<AppState>()(
             },
             agent: {
                 status: 'disconnected',
+                sessionId: crypto.randomUUID(),
+                model: 'auto',
                 messages: [],
                 braveMode: false,
                 loreFiles: [],
                 activeFileContext: null,
+                autoContextEnabled: true,
+                streamStatus: 'idle' as AgentStreamStatus,
+                currentToolName: null as string | null,
+                toolActions: [] as ToolAction[],
+                healingLoopActive: false,
+                healingIteration: 0,
+                maxHealingIterations: 5,
+                lastHealingError: null,
+                pinnedFiles: [],
+                lastTerminalError: null,
+                usage: null as { input: number; output: number } | null,
+                mode: 'code' as const,
+                availableModels: [],
             },
 
 
@@ -94,6 +110,7 @@ export const useAppStore = create<AppState>()(
                     await window.sumerian.project.open(path);
                     get().refreshFileTree();
                     get().refreshLore();
+                    get().refreshModels();
                     window.sumerian.files.watch(path);
                     // Sync to shared state
                     window.sumerian.state.set('project', { rootPath: path, fileTree: get().project.fileTree });
@@ -209,13 +226,56 @@ export const useAppStore = create<AppState>()(
             },
 
             // Agent Actions
-            sendMessage: async (content) => {
+            sendMessage: async (content, images = []) => {
+                let finalContent = content;
+
+                // If there are images, let the agent know where they are
+                if (images.length > 0) {
+                    const imageContext = images.map(img => `[IMAGE ATTACHED: ${img}]`).join('\n');
+                    finalContent = `${imageContext}\n\n${finalContent}`;
+                }
+
+                const { activeFileContext, autoContextEnabled, mode } = get().agent;
+
+                if (mode === 'chat') {
+                    finalContent = `[PLANNING MODE] I want to discuss and plan. Please provide architectural guidance or a plan, but DO NOT use any file system or shell tools yet unless I specifically ask for a dry-run or list directory.\n\n${finalContent}`;
+                } else {
+                    finalContent = `[CODE MODE] Please help me implement this. You are encouraged to use tools to read, write, and execute code to achieve the goal.\n\n${finalContent}`;
+                }
+
+                if (autoContextEnabled && activeFileContext) {
+                    try {
+                        const fileContent = await window.sumerian.files.read(activeFileContext);
+                        const fileName = activeFileContext.split(/[/\\]/).pop();
+                        finalContent = `Currently editing: ${fileName} (${activeFileContext})\n\n\`\`\`${fileName?.split('.').pop() || ''}\n${fileContent}\n\`\`\`\n\n${finalContent}`;
+                    } catch (error) {
+                        console.error('Failed to read active file for context:', error);
+                    }
+                }
+
+                // Append pinned files
+                const { pinnedFiles } = get().agent;
+                if (pinnedFiles.length > 0) {
+                    let pinnedContext = '\n--- PINNED CONTEXT ---\n';
+                    for (const path of pinnedFiles) {
+                        try {
+                            const content = await window.sumerian.files.read(path);
+                            const name = path.split(/[/\\]/).pop();
+                            pinnedContext += `\nFile: ${path}\n\`\`\`${name?.split('.').pop() || ''}\n${content}\n\`\`\`\n`;
+                        } catch (err) {
+                            console.error(`Failed to read pinned file ${path}:`, err);
+                        }
+                    }
+                    finalContent = pinnedContext + '\n--- END PINNED CONTEXT ---\n\n' + finalContent;
+                }
+
                 const userMessage = {
                     id: Date.now().toString(),
                     role: 'user' as const,
-                    content,
+                    content, // We store the original message in history
                     timestamp: Date.now(),
-                    status: 'sent' as const
+                    status: 'sent' as const,
+                    images
                 };
 
                 set((state) => ({
@@ -224,9 +284,10 @@ export const useAppStore = create<AppState>()(
                         messages: [...state.agent.messages, userMessage]
                     }
                 }));
+                get().saveSession();
 
                 try {
-                    await window.sumerian.cli.send(content, get().agent.braveMode);
+                    await window.sumerian.cli.send(finalContent, get().agent.braveMode);
                 } catch (error) {
                     console.error('Failed to send message to CLI:', error);
                 }
@@ -245,6 +306,7 @@ export const useAppStore = create<AppState>()(
                         messages: [...state.agent.messages, agentMessage]
                     }
                 }));
+                get().saveSession();
             },
             updateLastAgentMessage: (content) => {
                 set((state) => {
@@ -267,13 +329,43 @@ export const useAppStore = create<AppState>()(
                     }
                     return { agent: { ...state.agent, messages } };
                 });
+                get().saveSession();
             },
             setAgentStatus: (status) =>
                 set((state) => ({ agent: { ...state.agent, status } })),
             setBraveMode: (enabled) => {
                 set((state) => ({ agent: { ...state.agent, braveMode: enabled } }));
-                window.sumerian.cli.setBraveMode(enabled);
+                window.sumerian.state.set('agent', { mode: get().agent.mode, braveMode: get().agent.braveMode, model: get().agent.model });
             },
+            setModel: (model) => {
+                set((state) => ({ agent: { ...state.agent, model } }));
+                window.sumerian.cli.setModel(model);
+                window.sumerian.state.set('agent', { mode: get().agent.mode, braveMode: get().agent.braveMode, model: get().agent.model });
+            },
+            setMode: (mode) => {
+                const prevMode = get().agent.mode;
+                if (prevMode === mode) return;
+
+                set((state) => ({ agent: { ...state.agent, mode } }));
+                window.sumerian.state.set('agent', { mode: get().agent.mode, braveMode: get().agent.braveMode, model: get().agent.model });
+
+                // Add a system notification message
+                const systemMessage = {
+                    id: `mode-change-${Date.now()}`,
+                    role: 'agent' as const,
+                    content: `Mode switched to **${mode === 'chat' ? 'Planning' : 'Code'}**.`,
+                    timestamp: Date.now(),
+                    status: 'sent' as const
+                };
+                set((state) => ({
+                    agent: {
+                        ...state.agent,
+                        messages: [...state.agent.messages, systemMessage]
+                    }
+                }));
+            },
+            setAutoContextEnabled: (enabled) =>
+                set((state) => ({ agent: { ...state.agent, autoContextEnabled: enabled } })),
             clearHistory: () =>
                 set((state) => ({ agent: { ...state.agent, messages: [] } })),
             refreshLore: async () => {
@@ -286,6 +378,30 @@ export const useAppStore = create<AppState>()(
                     console.error('Failed to refresh lore:', error);
                 }
             },
+            setStreamStatus: (status, toolName = null) =>
+                set((state) => ({ agent: { ...state.agent, streamStatus: status, currentToolName: toolName } })),
+            addToolAction: (name, id, input) => {
+                const action: ToolAction = {
+                    id,
+                    name,
+                    input,
+                    timestamp: Date.now(),
+                    status: 'running'
+                };
+                set((state) => ({
+                    agent: { ...state.agent, toolActions: [...state.agent.toolActions, action] }
+                }));
+            },
+            updateToolActionStatus: (id, status, resultSummary) => {
+                set((state) => ({
+                    agent: {
+                        ...state.agent,
+                        toolActions: state.agent.toolActions.map(a =>
+                            a.id === id ? { ...a, status, resultSummary } : a
+                        )
+                    }
+                }));
+            },
             updateActiveFileContext: async (path) => {
                 set((state) => ({ agent: { ...state.agent, activeFileContext: path } }));
                 if (path) {
@@ -294,6 +410,83 @@ export const useAppStore = create<AppState>()(
                     } catch (error) {
                         console.error('Failed to update CLIP context:', error);
                     }
+                }
+            },
+            interruptHealingLoop: () => {
+                set((state) => ({
+                    agent: {
+                        ...state.agent,
+                        healingLoopActive: false,
+                        healingIteration: 0,
+                        lastHealingError: null
+                    }
+                }));
+            },
+            pruneHistory: () => {
+                set((state) => ({
+                    agent: {
+                        ...state.agent,
+                        messages: state.agent.messages.slice(-20)
+                    }
+                }));
+            },
+
+            toggleFilePin: (path: string) => {
+                set((state) => {
+                    const pinned = [...state.agent.pinnedFiles];
+                    const index = pinned.indexOf(path);
+                    if (index > -1) {
+                        pinned.splice(index, 1);
+                    } else {
+                        pinned.push(path);
+                    }
+                    return { agent: { ...state.agent, pinnedFiles: pinned } };
+                });
+            },
+
+            clearTerminalError: () => {
+                set((state) => ({ agent: { ...state.agent, lastTerminalError: null } }));
+            },
+
+            saveSession: async () => {
+                const { agent } = get();
+                if (!agent.sessionId) return;
+
+                await window.sumerian.session.save({
+                    id: agent.sessionId,
+                    messages: agent.messages,
+                    timestamp: Date.now(),
+                    usage: agent.usage
+                });
+            },
+
+            loadSession: async (id: string) => {
+                const session = await window.sumerian.session.load(id);
+                if (session) {
+                    set((state) => ({
+                        agent: {
+                            ...state.agent,
+                            sessionId: session.id,
+                            messages: session.messages,
+                            usage: session.usage || null
+                        }
+                    }));
+                }
+            },
+
+            listSessions: async () => {
+                return await window.sumerian.session.list();
+            },
+
+            refreshModels: async () => {
+                try {
+                    const models = await window.sumerian.cli.listModels();
+                    set((state) => ({ agent: { ...state.agent, availableModels: models } }));
+
+                    // If current model is 'auto' but we have a default model, we could set it
+                    // But usually Claude CLI handles 'auto' itself.
+                } catch (error) {
+                    console.error('Failed to refresh models:', error);
                 }
             },
 
@@ -307,7 +500,26 @@ export const useAppStore = create<AppState>()(
                 if (sharedState?.project) {
                     set((state) => ({ project: { ...state.project, ...sharedState.project } }));
                 }
-                
+                if (sharedState?.agent) {
+                    set((state) => ({ agent: { ...state.agent, ...sharedState.agent } }));
+                }
+
+                // Re-open persisted project to spawn CLI
+                const persistedRootPath = get().project.rootPath;
+                if (persistedRootPath) {
+                    await window.sumerian.project.open(persistedRootPath);
+                    get().refreshFileTree();
+                    get().refreshLore();
+                    get().refreshModels();
+                    window.sumerian.files.watch(persistedRootPath);
+
+                    // Load latest session
+                    const latestId = await window.sumerian.session.getLatestId();
+                    if (latestId) {
+                        get().loadSession(latestId);
+                    }
+                }
+
                 window.sumerian.files.onChanged((event) => {
                     console.log('File change detected:', event);
                     get().refreshFileTree();
@@ -321,8 +533,156 @@ export const useAppStore = create<AppState>()(
                     }
                 });
 
+                // Subscribe to typed parsed events (no JSON parsing in renderer)
+                window.sumerian.cli.onAssistantMessage(({ text, isStreaming }) => {
+                    if (text) {
+                        get().setStreamStatus('streaming');
+                        get().updateLastAgentMessage(text);
+                    }
+                });
+
+                window.sumerian.cli.onToolAction(async ({ type, name, id, input, content, isError }) => {
+                    console.log(`[Agent] Tool ${type}: ${name || id}`, id);
+
+                    if (type === 'use' && name && input) {
+                        get().setStreamStatus('tool_use', name);
+
+                        // Capture "before" content for diffing
+                        let beforeContent: string | undefined;
+                        const filePath = (input as any)?.path || (input as any)?.target_file;
+                        const fileTools = ['str_replace_editor', 'write_to_file', 'insert_content'];
+
+                        if (fileTools.includes(name) && filePath) {
+                            try {
+                                beforeContent = await window.sumerian.files.read(filePath);
+                            } catch (err) {
+                                console.warn('Could not read before content for diff:', err);
+                            }
+                        }
+
+                        get().addToolAction(name, id, input);
+
+                        if (beforeContent) {
+                            set((state) => ({
+                                agent: {
+                                    ...state.agent,
+                                    toolActions: state.agent.toolActions.map(a =>
+                                        a.id === id ? { ...a, beforeContent } : a
+                                    )
+                                }
+                            }));
+                        }
+                    } else if (type === 'result') {
+                        const status = isError ? 'error' : 'success';
+                        const summary = content ? content.substring(0, 100) + (content.length > 100 ? '...' : '') : undefined;
+
+                        get().updateToolActionStatus(id, status, summary);
+
+                        // Self-Healing Logic
+                        if (isError) {
+                            const { braveMode, healingIteration, maxHealingIterations } = get().agent;
+                            if (braveMode && healingIteration < maxHealingIterations) {
+                                console.log(`[Agent] Initiating self-healing loop: ${healingIteration + 1}/${maxHealingIterations}`);
+                                set((state) => ({
+                                    agent: {
+                                        ...state.agent,
+                                        healingLoopActive: true,
+                                        healingIteration: state.agent.healingIteration + 1,
+                                        lastHealingError: content || 'Unknown error'
+                                    }
+                                }));
+
+                                // Send error back to agent
+                                const fixPrompt = `The previous tool execution failed with the following error:\n\n${content || 'Unknown error'}\n\nPlease analyze this error and take corrective action.`;
+                                window.sumerian.cli.send(fixPrompt, true);
+                            } else if (braveMode) {
+                                console.warn('[Agent] Max self-healing iterations reached.');
+                                get().interruptHealingLoop();
+                                get().addAgentMessage('Stopping auto-fix: Max iterations reached.');
+                            }
+                        } else if (get().agent.healingLoopActive) {
+                            console.log('[Agent] Self-healing successful.');
+                            get().interruptHealingLoop();
+                        }
+
+                        // If tool indicates a file refresh might be needed
+                        const action = get().agent.toolActions.find(a => a.id === id);
+                        if (action && !isError) {
+                            const fileTools = ['str_replace_editor', 'write_to_file', 'insert_content', 'delete_file', 'move_file'];
+                            if (fileTools.includes(action.name)) {
+                                console.log(`[Agent] Tool completion triggered refresh: ${action.name}`);
+                                get().refreshFileTree();
+
+                                // Specific file reload and capture "after" content
+                                const filePath = (action.input as any)?.path || (action.input as any)?.target_file;
+                                if (filePath) {
+                                    // Capture after content for diffing
+                                    try {
+                                        const afterContent = await window.sumerian.files.read(filePath);
+                                        set((state) => ({
+                                            agent: {
+                                                ...state.agent,
+                                                toolActions: state.agent.toolActions.map(a =>
+                                                    a.id === id ? { ...a, afterContent } : a
+                                                )
+                                            }
+                                        }));
+                                    } catch (err) {
+                                        console.warn('Could not read after content for diff:', err);
+                                    }
+
+                                    const { activeFileId, openFiles } = get().editor;
+                                    // Make sure we have the full path if the tool uses relative
+                                    // For now we assume if it's open, it's the one
+                                    const openFile = openFiles.find(f => f.path.endsWith(filePath));
+                                    if (openFile && !openFile.isDirty) {
+                                        console.log(`[Agent] Reloading edited file: ${openFile.path}`);
+                                        get().openFile(openFile.path);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+
+                window.sumerian.cli.onAgentStatus(({ status, result, usage, type, message }) => {
+                    if (status === 'complete') {
+                        get().setStreamStatus('idle');
+                        console.log('[Agent] Complete, usage:', usage);
+                        if (usage) {
+                            set((state) => ({ agent: { ...state.agent, usage } }));
+                        }
+                    } else if (status === 'error') {
+                        get().setStreamStatus('idle');
+                        console.error(`[Agent] Error: ${type} - ${message}`);
+                        get().addAgentMessage(`Error: ${message}`);
+                    }
+                });
+
+                // Keep raw output for terminal mirroring (optional debug)
                 window.sumerian.cli.onOutput((output) => {
-                    get().updateLastAgentMessage(output.content);
+                    // Error sensing logic
+                    const content = output.content;
+                    const errorPatterns = [
+                        /TS[0-9]+:/i,
+                        /Error: /i,
+                        /Failed to compile/i,
+                        /ReferenceError:/i,
+                        /TypeError:/i,
+                        /SyntaxError:/i,
+                    ];
+
+                    const hasError = errorPatterns.some(p => p.test(content));
+                    if (hasError && !get().agent.healingLoopActive) {
+                        set((state) => ({ agent: { ...state.agent, lastTerminalError: content } }));
+
+                        // Clear error after 15 seconds
+                        setTimeout(() => {
+                            if (get().agent.lastTerminalError === content) {
+                                set((state) => ({ agent: { ...state.agent, lastTerminalError: null } }));
+                            }
+                        }, 15000);
+                    }
                 });
 
                 window.sumerian.cli.onStatusChange((status) => {
@@ -331,23 +691,28 @@ export const useAppStore = create<AppState>()(
 
                 // Listen for state updates from main process
                 window.sumerian.state.onUpdate(({ key, data }) => {
-                    console.log('Received state update:', key, data);
                     if (key === 'editor') {
                         set((state) => ({ editor: { ...state.editor, ...data } }));
                     } else if (key === 'project') {
                         set((state) => ({ project: { ...state.project, ...data } }));
+                    } else if (key === 'agent') {
+                        set((state) => ({ agent: { ...state.agent, ...data } }));
                     }
                 });
 
                 get().loadRecentProjects();
             }
-
         }),
 
         {
             name: 'sumerian-ui-storage',
-            partialize: (state) => ({ ui: state.ui, project: { rootPath: state.project.rootPath } }),
+            partialize: (state) => ({
+                ui: state.ui,
+                project: { rootPath: state.project.rootPath },
+                agent: { mode: state.agent.mode }
+            }),
         }
     )
 );
+
 

@@ -42,8 +42,8 @@ const SettingsModal: React.FC = () => {
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id)}
                             className={`flex items-center space-x-3 px-3 py-2 rounded-xl text-xs transition-all ${activeTab === tab.id
-                                    ? 'bg-nexus-bg-primary text-nexus-accent shadow-sm border border-nexus-border'
-                                    : 'text-nexus-fg-muted hover:text-nexus-fg-primary hover:bg-nexus-bg-primary/50'
+                                ? 'bg-nexus-bg-primary text-nexus-accent shadow-sm border border-nexus-border'
+                                : 'text-nexus-fg-muted hover:text-nexus-fg-primary hover:bg-nexus-bg-primary/50'
                                 }`}
                         >
                             <tab.icon className="w-3.5 h-3.5" />
@@ -79,17 +79,16 @@ const SettingsModal: React.FC = () => {
                                                 <button
                                                     key={theme.id}
                                                     onClick={() => setTheme(theme.id)}
-                                                    className={`p-4 rounded-2xl bg-nexus-bg-tertiary flex flex-col items-center justify-center space-y-2 transition-all ${
-                                                        isSelected 
-                                                            ? 'border-2 border-nexus-accent' 
+                                                    className={`p-4 rounded-2xl bg-nexus-bg-tertiary flex flex-col items-center justify-center space-y-2 transition-all ${isSelected
+                                                            ? 'border-2 border-nexus-accent'
                                                             : 'border border-nexus-border hover:border-nexus-fg-muted'
-                                                    }`}
+                                                        }`}
                                                 >
-                                                    <div 
+                                                    <div
                                                         className="w-full h-12 rounded-lg border border-nexus-border relative overflow-hidden"
                                                         style={{ backgroundColor: colors.bg }}
                                                     >
-                                                        <div 
+                                                        <div
                                                             className="absolute bottom-0 left-0 right-0 h-1"
                                                             style={{ backgroundColor: colors.accent }}
                                                         />
@@ -141,6 +140,24 @@ const SettingsModal: React.FC = () => {
                                         <pre className="text-xs font-mono text-nexus-fg-secondary" style={{ fontSize: `${settings.fontSize}px` }}>
                                             const sumerian = () =&gt; 'magic';
                                         </pre>
+                                    </div>
+                                </div>
+                                <div className="space-y-4 pt-4 border-t border-nexus-border">
+                                    <label className="text-[10px] font-bold uppercase tracking-widest text-nexus-fg-muted">Terminal Mirroring</label>
+                                    <p className="text-[10px] text-nexus-fg-muted">How agent actions appear in your terminal tabs</p>
+                                    <div className="grid grid-cols-3 gap-2">
+                                        {(['none', 'formatted', 'raw'] as const).map((mode) => (
+                                            <button
+                                                key={mode}
+                                                onClick={() => updateSettings({ terminalMirroring: mode })}
+                                                className={`px-3 py-2 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all border ${settings.terminalMirroring === mode
+                                                        ? 'bg-nexus-accent text-white border-nexus-accent'
+                                                        : 'bg-nexus-bg-tertiary text-nexus-fg-muted border-nexus-border hover:text-nexus-fg-primary'
+                                                    }`}
+                                            >
+                                                {mode}
+                                            </button>
+                                        ))}
                                     </div>
                                 </div>
                             </div>

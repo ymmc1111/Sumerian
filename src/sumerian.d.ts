@@ -5,7 +5,7 @@ export interface SumerianAPI {
     cli: {
         send: (content: string, braveMode: boolean) => Promise<void>;
         setBraveMode: (enabled: boolean) => Promise<boolean>;
-        getStatus: () => Promise<string>;
+        getStatus: () => Promise<any>;
         onOutput: (callback: (output: any) => void) => () => void;
         onStatusChange: (callback: (status: any) => void) => () => void;
         onExit: (callback: (info: any) => void) => () => void;
@@ -14,6 +14,7 @@ export interface SumerianAPI {
         onToolAction: (callback: (data: { type: 'use' | 'result'; name?: string; id: string; input?: Record<string, unknown>; content?: string; isError?: boolean }) => void) => () => void;
         onAgentStatus: (callback: (data: { status: string; result?: string; usage?: { input: number; output: number }; type?: string; message?: string }) => void) => () => void;
         setModel: (model: string) => Promise<boolean>;
+        listModels: () => Promise<any[]>;
     };
     session: {
         getStatus: () => Promise<any>;
@@ -39,11 +40,11 @@ export interface SumerianAPI {
     };
     files: {
         read: (path: string) => Promise<string>;
-        write: (path: string, content: string) => Promise<void>;
+        write: (path: string, content: string) => Promise<boolean>;
         list: (path: string) => Promise<any[]>;
         delete: (path: string) => Promise<boolean>;
         undo: () => Promise<boolean>;
-        watch: (path: string) => Promise<void>;
+        watch: (path: string) => Promise<boolean>;
         onChanged: (callback: (event: any) => void) => () => void;
         saveImage: (path: string, base64Data: string) => Promise<string>;
     };
@@ -57,10 +58,10 @@ export interface SumerianAPI {
     window: {
         detachPanel: (panelType: string, bounds?: { x: number; y: number; width: number; height: number }) => Promise<string>;
         reattachPanel: (windowId: string) => Promise<boolean>;
-        getDetachedPanels: () => Promise<Array<{ id: string; panelType: string }>>;
-        focus: (windowId: string) => Promise<boolean>;
-        moveToScreen: (windowId: string, screenIndex: number) => Promise<boolean>;
-        getScreens: () => Promise<Array<{ index: number; label: string; bounds: { x: number; y: number; width: number; height: number } }>>;
+        getDetachedPanels: () => Promise<any[]>;
+        focus: (windowId: string) => Promise<void>;
+        moveToScreen: (windowId: string, screenIndex: number) => Promise<void>;
+        getScreens: () => Promise<any[]>;
         onPanelClosed: (callback: (data: { id: string; panelType: string }) => void) => () => void;
     };
     state: {

@@ -1,8 +1,9 @@
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, dialog } from 'electron';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setupHandlers } from './main/ipc/handlers';
 import { windowManager } from './main/windows/WindowManager';
+import { resolveClaudePathSync } from './main/cli/resolveClaudePath';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -16,6 +17,20 @@ if (process.platform === 'win32') {
   } catch {
     // Module not available on non-Windows platforms
   }
+}
+
+// Resolve claude CLI path early (caches result for zero-latency spawns)
+try {
+  const claudePath = resolveClaudePathSync();
+  console.log(`[Sumerian] Claude CLI found at: ${claudePath}`);
+} catch (error: any) {
+  app.whenReady().then(() => {
+    dialog.showErrorBox(
+      'Claude CLI Not Found',
+      error.message || 'Please install the Claude CLI and restart Sumerian.'
+    );
+    app.quit();
+  });
 }
 
 setupHandlers();

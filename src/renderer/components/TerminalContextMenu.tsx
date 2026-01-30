@@ -29,8 +29,8 @@ const TerminalContextMenu: React.FC<TerminalContextMenuProps> = ({
     return (
         <div
             ref={menuRef}
-            className="fixed z-[200] w-48 bg-nexus-bg-secondary border border-nexus-border rounded-lg shadow-2xl py-1 animate-in fade-in zoom-in-95 duration-100"
-            style={{ top: y, left: x }}
+            className="fixed z-[200] w-48 bg-nexus-bg-secondary backdrop-blur-xl border border-nexus-border rounded-lg shadow-2xl py-1 animate-in fade-in zoom-in-95 duration-100"
+            style={{ top: y, left: x, backgroundColor: 'var(--color-bg-secondary)' }}
         >
             <button
                 onClick={() => { onCopy(); onClose(); }}

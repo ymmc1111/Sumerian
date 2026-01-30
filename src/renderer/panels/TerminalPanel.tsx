@@ -19,8 +19,10 @@ interface TerminalInstanceProps {
 const TerminalInstance: React.FC<TerminalInstanceProps> = ({ id, isActive }) => {
     const terminalRef = useRef<HTMLDivElement>(null);
     const xtermRef = useRef<XTerm | null>(null);
+    const fitAddonRef = useRef<FitAddon | null>(null);
     const [menuPos, setMenuPos] = useState<{ x: number, y: number } | null>(null);
-    const { project } = useAppStore();
+    const { project, ui } = useAppStore();
+    const { terminalMirroring } = ui.settings;
 
     const handleContextMenu = (e: React.MouseEvent) => {
         e.preventDefault();
@@ -64,11 +66,20 @@ const TerminalInstance: React.FC<TerminalInstanceProps> = ({ id, isActive }) => 
         });
 
         const fitAddon = new FitAddon();
+        fitAddonRef.current = fitAddon;
         term.loadAddon(fitAddon);
         term.loadAddon(new WebLinksAddon());
 
         term.open(terminalRef.current);
-        fitAddon.fit();
+        // Delay initial fit to ensure container has dimensions
+        requestAnimationFrame(() => {
+            try {
+                fitAddon.fit();
+            } catch (e) {
+                // Terminal not ready yet, will fit on resize
+            }
+        });
+
 
         xtermRef.current = term;
 
@@ -93,12 +104,35 @@ const TerminalInstance: React.FC<TerminalInstanceProps> = ({ id, isActive }) => 
         window.addEventListener('resize', resizeHandler);
 
         // Listen for CLI output to mirror it
-        // Note: In a real app we might want to mirror only to the 'default' or a specific terminal
-        const cleanupCLI = window.sumerian.cli.onOutput((output) => {
-            if (id === 'default' || id === 'mirror') {
-                term.write(`\r\n\x1b[36m[agent]\x1b[0m ${output.content}`);
+        let cleanupCLI = () => { };
+
+        if (id === 'default' || id === 'mirror') {
+            if (terminalMirroring === 'raw') {
+                cleanupCLI = window.sumerian.cli.onOutput((output) => {
+                    term.write(`\r\n\x1b[36m[agent]\x1b[0m ${output.content}`);
+                });
+            } else if (terminalMirroring === 'formatted') {
+                const cleanupTool = window.sumerian.cli.onToolAction((action) => {
+                    if (action.type === 'use') {
+                        term.write(`\r\n\x1b[35m[agent:tool]\x1b[0m Using \x1b[1m${action.name}\x1b[0m...\r\n`);
+                    } else if (action.type === 'result') {
+                        const color = action.isError ? '\x1b[31m' : '\x1b[32m';
+                        term.write(`\x1b[35m[agent:tool]\x1b[0m Result: ${color}${action.isError ? 'Error' : 'Success'}\x1b[0m\r\n`);
+                    }
+                });
+
+                const cleanupStatus = window.sumerian.cli.onAgentStatus((status) => {
+                    if (status.status === 'complete') {
+                        term.write(`\x1b[36m[agent]\x1b[0m Response complete.\r\n`);
+                    }
+                });
+
+                cleanupCLI = () => {
+                    cleanupTool();
+                    cleanupStatus();
+                };
             }
-        });
+        }
 
         return () => {
             cleanupData();
@@ -106,15 +140,19 @@ const TerminalInstance: React.FC<TerminalInstanceProps> = ({ id, isActive }) => 
             window.removeEventListener('resize', resizeHandler);
             term.dispose();
         };
-    }, []);
+    }, [id, terminalMirroring]); // Now terminalMirroring is in the dependency array, so the effect will re-run if it changes.
 
     useEffect(() => {
-        if (isActive && xtermRef.current) {
+        if (isActive && xtermRef.current && fitAddonRef.current) {
             xtermRef.current.focus();
-            // Refit on activation
-            const fitAddon = new FitAddon();
-            xtermRef.current.loadAddon(fitAddon);
-            setTimeout(() => fitAddon.fit(), 10);
+            // Refit on activation using existing addon
+            requestAnimationFrame(() => {
+                try {
+                    fitAddonRef.current?.fit();
+                } catch (e) {
+                    // Terminal not ready yet
+                }
+            });
         }
     }, [isActive]);
 

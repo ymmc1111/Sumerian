@@ -18,6 +18,8 @@ This folder contains sprint planning documents for the Sumerian Vibe-Runner IDE 
 | **08** | **Layout Engine** | 1 week | Drag-drop panels, layout toggles, snap regions |
 | **09** | **GRID Theme** | 1 week | Tron 80s aesthetic with animations and effects |
 | **10** | **LOVE Theme** | 1 week | Ive minimalist aesthetic with light/dark modes |
+| **11** | **Agent Experience** | 2 weeks | Full chat interface: parsing, @ mentions, /commands, images, sessions |
+| **12** | **Self-Healing** | 1 week | Autonomous error recovery loops and advanced context management |
 
 ## Sprint Documents
 
@@ -34,6 +36,10 @@ This folder contains sprint planning documents for the Sumerian Vibe-Runner IDE 
 - [Sprint 08: Layout Engine](./sprint-08-layout.md)
 - [Sprint 09: GRID Theme](./sprint-09-grid-theme.md)
 - [Sprint 10: LOVE Theme](./sprint-10-love-theme.md)
+
+### v3.0 — Agent Experience
+- [Sprint 11: Agent Experience & VSCode Parity](./sprint-11-agent-experience.md)
+- [Sprint 12: Self-Healing & Advanced Context](./sprint-12-self-healing.md)
 
 ## How to Use
 
@@ -58,4 +64,4 @@ Use the `/sprints` workflow command to get guidance on sprint execution.
 
 ---
 
-*Total Estimated Duration: 10 weeks (6 weeks MVP + 4 weeks Theming)*
+*Total Estimated Duration: 12 weeks (6 weeks MVP + 4 weeks Theming + 2 weeks Agent Experience)*
