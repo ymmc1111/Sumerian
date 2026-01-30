@@ -149,6 +149,12 @@ export function setupHandlers() {
         return await cliManager.listModels();
     });
 
+    ipcMain.handle('cli:refreshModels', async () => {
+        if (!cliManager) return false;
+        await cliManager.refreshModels();
+        return true;
+    });
+
     ipcMain.handle('cli:getStatus', async () => {
         return cliManager ? cliManager.getStatus() : ConnectionStatus.DISCONNECTED;
     });
@@ -220,6 +226,11 @@ export function setupHandlers() {
             onStatusChange: (status) => {
                 if (!webContents.isDestroyed()) {
                     webContents.send('cli:status-change', status);
+                }
+            },
+            onModelsUpdated: (models) => {
+                if (!webContents.isDestroyed()) {
+                    webContents.send('cli:models-updated', models);
                 }
             }
         });

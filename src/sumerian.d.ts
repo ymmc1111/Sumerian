@@ -15,6 +15,8 @@ export interface SumerianAPI {
         onAgentStatus: (callback: (data: { status: string; result?: string; usage?: { input: number; output: number }; type?: string; message?: string }) => void) => () => void;
         setModel: (model: string) => Promise<boolean>;
         listModels: () => Promise<any[]>;
+        refreshModels: () => Promise<boolean>;
+        onModelsUpdated: (callback: (models: any[]) => void) => () => void;
     };
     session: {
         getStatus: () => Promise<any>;

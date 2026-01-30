@@ -171,5 +171,6 @@ export interface AppState {
     loadSession: (id: string) => Promise<void>;
     listSessions: () => Promise<any[]>;
     refreshModels: () => Promise<void>;
+    forceRefreshModels: () => Promise<void>;
     init: () => void;
 }

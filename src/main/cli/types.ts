@@ -22,4 +22,5 @@ export interface CLIManagerEvents {
     onOutput: (output: CLIOutput) => void;
     onExit: (exitCode: number, signal?: number) => void;
     onStatusChange: (status: ConnectionStatus) => void;
+    onModelsUpdated?: (models: any[]) => void;
 }

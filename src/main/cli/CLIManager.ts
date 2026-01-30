@@ -1,7 +1,10 @@
 import * as pty from 'node-pty';
 import * as os from 'os';
 import * as path from 'path';
-import { execSync } from 'child_process';
+import { execSync, exec } from 'child_process';
+import { app } from 'electron';
+import * as fs from 'fs/promises';
+import { existsSync } from 'fs';
 import { CLIConfig, CLIOutput, ConnectionStatus, CLIManagerEvents } from './types';
 import { resolveClaudePathSync } from './resolveClaudePath';
 import { CLIOutputParser } from './CLIOutputParser';
@@ -24,6 +27,8 @@ export class CLIManager {
     private model: string = 'claude-sonnet-4-5-20250929';
     private isFirstMessage: boolean = true;
     private parser: CLIOutputParser;
+    private static readonly MODELS_CACHE_FILE = path.join(app.getPath('home'), '.sumerian', 'models-cache.json');
+    private isRefreshingModels: boolean = false;
 
     constructor(projectRoot: string, events: CLIManagerEvents) {
         this.events = events;
@@ -192,26 +197,89 @@ export class CLIManager {
     }
 
     public async listModels(): Promise<any[]> {
+        const cache = await this.readModelsCache();
+        const now = Date.now();
+        const sevenDays = 7 * 24 * 60 * 60 * 1000;
+
+        // If cache exists and is fresh, return it
+        if (cache && (now - cache.lastUpdated < sevenDays)) {
+            console.log('[CLIManager] Returning fresh models from cache');
+            return cache.models;
+        }
+
+        // If cache exists but is stale, return it and trigger background refresh
+        if (cache) {
+            console.log('[CLIManager] Cache stale, triggering background refresh');
+            this.refreshModels();
+            return cache.models;
+        }
+
+        // No cache, use fallbacks and trigger refresh
+        console.log('[CLIManager] No cache, using fallbacks and triggering refresh');
+        this.refreshModels();
+        return [
+            { id: 'claude-sonnet-4-5-20250929', name: 'Claude Sonnet 4.5', description: 'Best for Coding/Agents', default: true },
+            { id: 'claude-opus-4-5-20251101', name: 'Claude Opus 4.5', description: 'Premium Reasoning' },
+            { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5', description: 'Fastest / Cheapest' }
+        ];
+    }
+
+    public async refreshModels(): Promise<void> {
+        if (this.isRefreshingModels) return;
+        this.isRefreshingModels = true;
+
         const executable = this.config.executable;
         const args = ['models', '--output-format', 'json'];
 
-        try {
-            console.log('[CLIManager] Listing models:', executable, args.join(' '));
-            const output = execSync(`${executable} ${args.join(' ')}`, {
-                env: this.config.env,
-                encoding: 'utf8',
-                timeout: 15000
-            });
+        console.log('[CLIManager] Background refreshing models:', executable, args.join(' '));
 
-            return JSON.parse(output);
-        } catch (error) {
-            console.warn('[CLIManager] Failed to list models from CLI, using fallback:', error);
-            // Fallback list with 4.5 series models
-            return [
-                { id: 'claude-sonnet-4-5-20250929', name: 'Claude Sonnet 4.5', description: 'Best for Coding/Agents', default: true },
-                { id: 'claude-opus-4-5-20251101', name: 'Claude Opus 4.5', description: 'Premium Reasoning' },
-                { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5', description: 'Fastest / Cheapest' }
-            ];
+        exec(`${executable} ${args.join(' ')}`, {
+            env: this.config.env as any,
+            timeout: 15000
+        }, async (error, stdout, stderr) => {
+            this.isRefreshingModels = false;
+
+            if (error) {
+                console.error('[CLIManager] Background refresh failed:', error);
+                return;
+            }
+
+            try {
+                const models = JSON.parse(stdout);
+                await this.writeModelsCache(models);
+                console.log('[CLIManager] Models cache updated background');
+
+                if (this.events.onModelsUpdated) {
+                    this.events.onModelsUpdated(models);
+                }
+            } catch (err) {
+                console.error('[CLIManager] Failed to parse background models output:', err);
+            }
+        });
+    }
+
+    private async readModelsCache(): Promise<{ lastUpdated: number; models: any[] } | null> {
+        try {
+            if (!existsSync(CLIManager.MODELS_CACHE_FILE)) return null;
+            const content = await fs.readFile(CLIManager.MODELS_CACHE_FILE, 'utf-8');
+            return JSON.parse(content);
+        } catch (e) {
+            return null;
+        }
+    }
+
+    private async writeModelsCache(models: any[]): Promise<void> {
+        try {
+            const dir = path.dirname(CLIManager.MODELS_CACHE_FILE);
+            if (!existsSync(dir)) {
+                await fs.mkdir(dir, { recursive: true });
+            }
+            await fs.writeFile(CLIManager.MODELS_CACHE_FILE, JSON.stringify({
+                lastUpdated: Date.now(),
+                models
+            }, null, 2));
+        } catch (e) {
+            console.error('[CLIManager] Failed to write models cache:', e);
         }
     }
 }

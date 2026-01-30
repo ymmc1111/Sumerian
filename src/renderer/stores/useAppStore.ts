@@ -489,6 +489,13 @@ export const useAppStore = create<AppState>()(
                     console.error('Failed to refresh models:', error);
                 }
             },
+            forceRefreshModels: async () => {
+                try {
+                    await window.sumerian.cli.refreshModels();
+                } catch (error) {
+                    console.error('Failed to force refresh models:', error);
+                }
+            },
 
             // Store Initialization
             init: async () => {
@@ -531,6 +538,11 @@ export const useAppStore = create<AppState>()(
                             get().openFile(event.path);
                         }
                     }
+                });
+
+                window.sumerian.cli.onModelsUpdated((models: any[]) => {
+                    console.log('[Store] Models updated via background fetch:', models);
+                    set((state) => ({ agent: { ...state.agent, availableModels: models } }));
                 });
 
                 // Subscribe to typed parsed events (no JSON parsing in renderer)

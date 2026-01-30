@@ -36,6 +36,11 @@ contextBridge.exposeInMainWorld('sumerian', {
         },
         setModel: (model: string) => ipcRenderer.invoke('cli:setModel', model),
         listModels: () => ipcRenderer.invoke('cli:listModels'),
+        refreshModels: () => ipcRenderer.invoke('cli:refreshModels'),
+        onModelsUpdated: (callback: (models: any[]) => void) => {
+            ipcRenderer.on('cli:models-updated', (_event, value) => callback(value));
+            return () => ipcRenderer.removeAllListeners('cli:models-updated');
+        },
     },
     session: {
         getStatus: () => ipcRenderer.invoke('session:getStatus'),

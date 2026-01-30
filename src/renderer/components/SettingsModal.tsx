@@ -4,10 +4,22 @@ import { useAppStore } from '../stores/useAppStore';
 import { useTheme } from '../themes';
 
 const SettingsModal: React.FC = () => {
-    const { ui, updateSettings, toggleSettings } = useAppStore();
+    const { ui, updateSettings, toggleSettings, forceRefreshModels } = useAppStore();
     const { settings } = ui;
     const { themeId, setTheme, availableThemes, reducedMotion, setReducedMotion } = useTheme();
-    const [activeTab, setActiveTab] = React.useState<'appearance' | 'editor' | 'security' | 'about'>('appearance');
+    const [activeTab, setActiveTab] = React.useState<'appearance' | 'editor' | 'agent' | 'security' | 'about'>('appearance');
+    const [isRefreshing, setIsRefreshing] = React.useState(false);
+
+    const handleRefreshModels = async () => {
+        setIsRefreshing(true);
+        try {
+            await forceRefreshModels();
+            // The store will be updated via onModelsUpdated event
+        } finally {
+            // Give it a tiny bit of visual feedback even if fast
+            setTimeout(() => setIsRefreshing(false), 800);
+        }
+    };
 
     if (!settings.isSettingsOpen) return null;
 
@@ -21,6 +33,7 @@ const SettingsModal: React.FC = () => {
     const tabs = [
         { id: 'appearance', label: 'Appearance', icon: Monitor },
         { id: 'editor', label: 'Editor', icon: Type },
+        { id: 'agent', label: 'Agent', icon: Sparkles },
         { id: 'security', label: 'Security', icon: Shield },
         { id: 'about', label: 'About', icon: Info },
     ] as const;
@@ -80,8 +93,8 @@ const SettingsModal: React.FC = () => {
                                                     key={theme.id}
                                                     onClick={() => setTheme(theme.id)}
                                                     className={`p-4 rounded-2xl bg-nexus-bg-tertiary flex flex-col items-center justify-center space-y-2 transition-all ${isSelected
-                                                            ? 'border-2 border-nexus-accent'
-                                                            : 'border border-nexus-border hover:border-nexus-fg-muted'
+                                                        ? 'border-2 border-nexus-accent'
+                                                        : 'border border-nexus-border hover:border-nexus-fg-muted'
                                                         }`}
                                                 >
                                                     <div
@@ -151,8 +164,8 @@ const SettingsModal: React.FC = () => {
                                                 key={mode}
                                                 onClick={() => updateSettings({ terminalMirroring: mode })}
                                                 className={`px-3 py-2 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all border ${settings.terminalMirroring === mode
-                                                        ? 'bg-nexus-accent text-white border-nexus-accent'
-                                                        : 'bg-nexus-bg-tertiary text-nexus-fg-muted border-nexus-border hover:text-nexus-fg-primary'
+                                                    ? 'bg-nexus-accent text-white border-nexus-accent'
+                                                    : 'bg-nexus-bg-tertiary text-nexus-fg-muted border-nexus-border hover:text-nexus-fg-primary'
                                                     }`}
                                             >
                                                 {mode}
@@ -176,6 +189,32 @@ const SettingsModal: React.FC = () => {
                                     >
                                         <div className={`w-3 h-3 rounded-full bg-white transition-all ${settings.braveModeByDefault ? 'translate-x-5' : 'translate-x-0'}`} />
                                     </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'agent' && (
+                            <div className="space-y-6">
+                                <div className="space-y-4">
+                                    <label className="text-[10px] font-bold uppercase tracking-widest text-nexus-fg-muted">Claude CLI Models</label>
+                                    <div className="p-4 rounded-2xl bg-nexus-bg-tertiary border border-nexus-border space-y-4">
+                                        <div className="flex items-center justify-between">
+                                            <div className="space-y-1">
+                                                <h3 className="text-xs font-bold text-nexus-fg-primary">Model List Cache</h3>
+                                                <p className="text-[10px] text-nexus-fg-muted">Models are cached to improve boot time. Auto-refreshes weekly.</p>
+                                            </div>
+                                            <button
+                                                onClick={handleRefreshModels}
+                                                disabled={isRefreshing}
+                                                className={`px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all border ${isRefreshing
+                                                        ? 'bg-nexus-bg-primary text-nexus-fg-muted border-nexus-border cursor-wait'
+                                                        : 'bg-nexus-accent text-white border-nexus-accent hover:shadow-[0_0_15px_rgba(59,130,246,0.5)]'
+                                                    }`}
+                                            >
+                                                {isRefreshing ? 'Refreshing...' : 'Refresh Now'}
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         )}
