@@ -42,7 +42,7 @@ const AgentPanel: React.FC<AgentPanelProps> = ({ slotId = 'C' }) => {
     }, [agent.messages]);
 
     return (
-        <div className="w-full h-full bg-nexus-bg-secondary flex flex-col border-l border-nexus-border">
+        <div className="w-full h-full bg-nexus-bg-secondary flex flex-col">
             {/* Header */}
             <PanelHeader
                 title="Agent"
@@ -52,7 +52,7 @@ const AgentPanel: React.FC<AgentPanelProps> = ({ slotId = 'C' }) => {
                 icon={<Bot className="w-4 h-4" />}
                 actions={
                     <div className="flex items-center gap-2">
-                        {agent.loreFiles.length > 0 && (
+                        {agent.loreFiles?.length > 0 && (
                             <div className="group relative">
                                 <div className="status-badge status-badge-default cursor-help">
                                     <Book className="w-3 h-3 text-nexus-accent" />
@@ -125,7 +125,7 @@ const AgentPanel: React.FC<AgentPanelProps> = ({ slotId = 'C' }) => {
                         </button>
                     </div>
                 )}
-                {agent.messages.length === 0 ? (
+                {!agent.messages || agent.messages.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-center p-8 opacity-40 font-mono">
                         <div className="w-12 h-12 rounded-2xl bg-nexus-bg-tertiary border border-nexus-border flex items-center justify-center mb-4">
                             <Trash2 className="w-6 h-6 text-nexus-fg-muted" />

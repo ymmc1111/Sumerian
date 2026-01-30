@@ -20,7 +20,7 @@ const ModelSelector: React.FC = () => {
     // Add 'Auto' at the top if not present in CLI models
     const displayModels = [
         { id: 'auto', name: 'Auto (Default)', description: 'Let Claude CLI decide the best model' },
-        ...agent.availableModels
+        ...(agent.availableModels || [])
     ];
 
     const currentModel = displayModels.find(m => m.id === agent.model) || displayModels[0];
