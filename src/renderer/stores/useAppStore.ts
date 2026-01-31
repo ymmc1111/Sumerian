@@ -471,6 +471,15 @@ export const useAppStore = create<AppState>()(
                 }));
                 get().saveSession();
 
+                // Sync messages to shared state for detached windows
+                if (typeof window !== 'undefined' && window.sumerian?.state?.set && window.sumerian?.state?.get) {
+                    window.sumerian.state.get('agent').then((currentState: any) => {
+                        window.sumerian.state.set('agent', { ...currentState, messages: get().agent.messages });
+                    }).catch(() => {
+                        window.sumerian.state.set('agent', { messages: get().agent.messages });
+                    });
+                }
+
                 // Broadcast message to detached windows
                 if (typeof window !== 'undefined' && window.sumerian?.state?.broadcast) {
                     window.sumerian.state.broadcast('agent:message', userMessage);
@@ -497,6 +506,15 @@ export const useAppStore = create<AppState>()(
                     }
                 }));
                 get().saveSession();
+
+                // Sync messages to shared state for detached windows
+                if (typeof window !== 'undefined' && window.sumerian?.state?.set && window.sumerian?.state?.get) {
+                    window.sumerian.state.get('agent').then((currentState: any) => {
+                        window.sumerian.state.set('agent', { ...currentState, messages: get().agent.messages });
+                    }).catch(() => {
+                        window.sumerian.state.set('agent', { messages: get().agent.messages });
+                    });
+                }
 
                 // Broadcast message to detached windows
                 if (typeof window !== 'undefined' && window.sumerian?.state?.broadcast) {
@@ -543,9 +561,10 @@ export const useAppStore = create<AppState>()(
                     window.sumerian.state.broadcast('agent:status', { status });
                 }
             },
-            setBraveMode: (enabled) => {
+            setBraveMode: async (enabled) => {
                 set((state) => ({ agent: { ...state.agent, braveMode: enabled } }));
-                window.sumerian.state.set('agent', { mode: get().agent.mode, braveMode: get().agent.braveMode, model: get().agent.model });
+                await window.sumerian.cli.setBraveMode(enabled);
+                window.sumerian.state.set('agent', { mode: get().agent.mode, braveMode: enabled, model: get().agent.model });
             },
             setModel: (model) => {
                 set((state) => ({ agent: { ...state.agent, model } }));

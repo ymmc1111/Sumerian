@@ -161,6 +161,11 @@ export class CLIManager {
         this.model = model;
     }
 
+    public setBraveMode(enabled: boolean): void {
+        this.braveMode = enabled;
+        console.log('[CLIManager] Brave mode updated:', enabled);
+    }
+
     public getStatus(): ConnectionStatus {
         return this.status;
     }

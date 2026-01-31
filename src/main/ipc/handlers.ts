@@ -134,7 +134,7 @@ export function setupHandlers() {
 
     ipcMain.handle('cli:setBraveMode', async (_event, enabled: boolean) => {
         if (!cliManager) return false;
-        cliManager.spawn(enabled);
+        cliManager.setBraveMode(enabled);
         return true;
     });
 
@@ -251,33 +251,48 @@ export function setupHandlers() {
         const parser = cliManager.getParser();
 
         parser.on('assistantText', (text: string, isStreaming: boolean) => {
-            if (!webContents.isDestroyed()) {
-                webContents.send('cli:assistant-message', { text, isStreaming });
-            }
+            // Broadcast to all windows (main + detached)
+            BrowserWindow.getAllWindows().forEach(win => {
+                if (!win.isDestroyed()) {
+                    win.webContents.send('cli:assistant-message', { text, isStreaming });
+                }
+            });
         });
 
         parser.on('toolUse', (name: string, id: string, input: Record<string, unknown>) => {
-            if (!webContents.isDestroyed()) {
-                webContents.send('cli:tool-action', { type: 'use', name, id, input });
-            }
+            // Broadcast to all windows (main + detached)
+            BrowserWindow.getAllWindows().forEach(win => {
+                if (!win.isDestroyed()) {
+                    win.webContents.send('cli:tool-action', { type: 'use', name, id, input });
+                }
+            });
         });
 
         parser.on('toolResult', (id: string, content: string, isError: boolean) => {
-            if (!webContents.isDestroyed()) {
-                webContents.send('cli:tool-action', { type: 'result', id, content, isError });
-            }
+            // Broadcast to all windows (main + detached)
+            BrowserWindow.getAllWindows().forEach(win => {
+                if (!win.isDestroyed()) {
+                    win.webContents.send('cli:tool-action', { type: 'result', id, content, isError });
+                }
+            });
         });
 
         parser.on('complete', (result: string, usage?: { input: number; output: number }) => {
-            if (!webContents.isDestroyed()) {
-                webContents.send('cli:status', { status: 'complete', result, usage });
-            }
+            // Broadcast to all windows (main + detached)
+            BrowserWindow.getAllWindows().forEach(win => {
+                if (!win.isDestroyed()) {
+                    win.webContents.send('cli:status', { status: 'complete', result, usage });
+                }
+            });
         });
 
         parser.on('error', (type: string, message: string) => {
-            if (!webContents.isDestroyed()) {
-                webContents.send('cli:status', { status: 'error', type, message });
-            }
+            // Broadcast to all windows (main + detached)
+            BrowserWindow.getAllWindows().forEach(win => {
+                if (!win.isDestroyed()) {
+                    win.webContents.send('cli:status', { status: 'error', type, message });
+                }
+            });
         });
 
         const loreManager = new LoreManager(projectPath);
