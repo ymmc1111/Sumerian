@@ -272,3 +272,17 @@ p {
 code, pre, .font-mono {
   font-family: var(--font-mono);
 }
+
+/* ============================================
+   Terminal Scrollbar - Hide for clean look
+   ============================================ */
+
+.xterm .xterm-viewport {
+  overflow-y: scroll;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+}
+
+.xterm .xterm-viewport::-webkit-scrollbar {
+  display: none; /* Chrome/Safari/Opera */
+}

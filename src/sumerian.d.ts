@@ -106,6 +106,10 @@ export interface SumerianAPI {
         onUpdate: (callback: (data: { key: string; data: any }) => void) => () => void;
         onSync: (channel: string, callback: (data: any) => void) => () => void;
     };
+    docs: {
+        read: (docPath: string) => Promise<string>;
+        list: () => Promise<any[]>;
+    };
 }
 
 declare global {

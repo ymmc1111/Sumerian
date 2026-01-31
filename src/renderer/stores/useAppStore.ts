@@ -1392,7 +1392,18 @@ export const useAppStore = create<AppState>()(
         {
             name: 'sumerian-ui-storage',
             partialize: (state) => ({
-                ui: state.ui,
+                ui: {
+                    ...state.ui,
+                    // Don't persist modal open states
+                    isCommandPaletteOpen: false,
+                    isShortcutsHelpOpen: false,
+                    isProjectSwitcherOpen: false,
+                    isDocsViewerOpen: false,
+                    settings: {
+                        ...state.ui.settings,
+                        isSettingsOpen: false,
+                    },
+                },
                 project: { rootPath: state.project.rootPath },
                 agent: { mode: state.agent.mode }
             }),

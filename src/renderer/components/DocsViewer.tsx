@@ -110,9 +110,10 @@ const DocsViewer: React.FC<DocsViewerProps> = ({ isOpen, onClose, initialDocId }
             <div
                 className="w-full max-w-5xl h-[600px] bg-nexus-bg-secondary border border-nexus-border rounded-3xl shadow-2xl flex overflow-hidden animate-in zoom-in-95 duration-200"
                 onClick={(e) => e.stopPropagation()}
+                style={{ backgroundColor: 'var(--color-bg-secondary)' }}
             >
                 {/* Sidebar */}
-                <div className="w-60 bg-nexus-bg-tertiary border-r border-nexus-border flex flex-col">
+                <div className="w-60 bg-nexus-bg-tertiary border-r border-nexus-border flex flex-col" style={{ backgroundColor: 'var(--color-bg-tertiary)' }}>
                     {/* Header */}
                     <div className="h-12 px-4 border-b border-nexus-border flex items-center justify-between shrink-0">
                         <div className="flex items-center space-x-2">
@@ -155,9 +156,9 @@ const DocsViewer: React.FC<DocsViewerProps> = ({ isOpen, onClose, initialDocId }
                 </div>
 
                 {/* Content */}
-                <div className="flex-1 flex flex-col min-w-0 bg-nexus-bg-primary">
+                <div className="flex-1 flex flex-col min-w-0 bg-nexus-bg-primary" style={{ backgroundColor: 'var(--color-bg-primary)' }}>
                     {/* Header */}
-                    <div className="h-12 px-6 border-b border-nexus-border flex items-center justify-between shrink-0">
+                    <div className="h-12 px-6 border-b border-nexus-border flex items-center justify-between shrink-0 bg-nexus-bg-secondary">
                         <h2 className="text-sm font-bold text-nexus-fg-primary">
                             {allDocs.find(d => d.id === activeDocId)?.title || 'Documentation'}
                         </h2>
@@ -170,13 +171,13 @@ const DocsViewer: React.FC<DocsViewerProps> = ({ isOpen, onClose, initialDocId }
                     </div>
 
                     {/* Content Area */}
-                    <div className="flex-1 overflow-y-auto p-8">
+                    <div className="flex-1 overflow-y-auto p-8 bg-nexus-bg-primary">
                         {loading ? (
                             <div className="flex items-center justify-center h-full">
                                 <div className="text-xs text-nexus-fg-muted">Loading documentation...</div>
                             </div>
                         ) : (
-                            <div className="prose prose-sm max-w-none">
+                            <div className="prose prose-sm max-w-none bg-nexus-bg-primary">
                                 <ReactMarkdown
                                     components={{
                                         h1: ({ children }) => (
