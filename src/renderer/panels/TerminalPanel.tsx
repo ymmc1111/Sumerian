@@ -111,17 +111,8 @@ const TerminalInstance: React.FC<TerminalInstanceProps> = ({ id, isActive }) => 
         // Initialize terminal via IPC
         window.sumerian.terminal.create(id, project.rootPath || './');
 
-        let initialDataReceived = false;
         const cleanupData = window.sumerian.terminal.onData(id, (data: string) => {
             term.write(data);
-            
-            // Scroll to top after initial shell output is received
-            if (!initialDataReceived) {
-                initialDataReceived = true;
-                setTimeout(() => {
-                    term.scrollToTop();
-                }, 150);
-            }
         });
 
         term.onData((data) => {

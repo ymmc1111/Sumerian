@@ -14,6 +14,19 @@ const SettingsModal: React.FC = () => {
     const [configLoading, setConfigLoading] = React.useState(false);
     const [configSaving, setConfigSaving] = React.useState(false);
 
+    const getTabTooltip = (tabId: string): string => {
+        const tooltips: Record<string, string> = {
+            'appearance': 'Customize theme and visual preferences',
+            'editor': 'Configure editor font size and terminal settings',
+            'agent': 'Manage Claude CLI models and advanced flags',
+            'mcp': 'Configure Model Context Protocol tools and servers',
+            'project': 'Project-specific settings and overrides',
+            'security': 'Configure brave mode and security preferences',
+            'about': 'View app information and documentation'
+        };
+        return tooltips[tabId] || '';
+    };
+
     const handleRefreshModels = async () => {
         setIsRefreshing(true);
         try {
@@ -97,6 +110,7 @@ const SettingsModal: React.FC = () => {
                         <button
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id)}
+                            title={getTabTooltip(tab.id)}
                             className={`flex items-center space-x-3 px-3 py-2 rounded-xl text-xs transition-all ${activeTab === tab.id
                                 ? 'bg-nexus-bg-primary text-nexus-accent shadow-sm border border-nexus-border'
                                 : 'text-nexus-fg-muted hover:text-nexus-fg-primary hover:bg-nexus-bg-primary/50'
@@ -116,6 +130,7 @@ const SettingsModal: React.FC = () => {
                         </h2>
                         <button
                             onClick={toggleSettings}
+                            title="Close Settings (Esc)"
                             className="p-1 hover:bg-nexus-bg-tertiary rounded-lg text-nexus-fg-muted hover:text-nexus-fg-primary transition-all"
                         >
                             <X className="w-4 h-4" />
@@ -135,6 +150,7 @@ const SettingsModal: React.FC = () => {
                                                 <button
                                                     key={theme.id}
                                                     onClick={() => setTheme(theme.id)}
+                                                    title={`Switch to ${theme.name} theme`}
                                                     className={`p-4 rounded-2xl bg-nexus-bg-tertiary flex flex-col items-center justify-center space-y-2 transition-all ${isSelected
                                                         ? 'border-2 border-nexus-accent'
                                                         : 'border border-nexus-border hover:border-nexus-fg-muted'
@@ -168,6 +184,7 @@ const SettingsModal: React.FC = () => {
                                     </div>
                                     <button
                                         onClick={() => setReducedMotion(!reducedMotion)}
+                                        title={`${reducedMotion ? 'Disable' : 'Enable'} reduced motion mode`}
                                         className={`w-10 h-5 rounded-full p-1 transition-all ${reducedMotion ? 'bg-nexus-accent' : 'bg-nexus-bg-primary'}`}
                                     >
                                         <div className={`w-3 h-3 rounded-full bg-white transition-all ${reducedMotion ? 'translate-x-5' : 'translate-x-0'}`} />
@@ -190,6 +207,7 @@ const SettingsModal: React.FC = () => {
                                         step="1"
                                         value={settings.fontSize}
                                         onChange={(e) => updateSettings({ fontSize: parseInt(e.target.value) })}
+                                        title={`Adjust editor font size (current: ${settings.fontSize}px)`}
                                         className="w-full accent-nexus-accent bg-nexus-bg-tertiary h-1.5 rounded-full appearance-none cursor-pointer"
                                     />
                                     <div className="p-4 rounded-xl bg-nexus-bg-tertiary border border-nexus-border">
@@ -206,6 +224,7 @@ const SettingsModal: React.FC = () => {
                                             <button
                                                 key={mode}
                                                 onClick={() => updateSettings({ terminalMirroring: mode })}
+                                                title={mode === 'none' ? 'No terminal output' : mode === 'formatted' ? 'Show formatted agent commands' : 'Show raw CLI output'}
                                                 className={`px-3 py-2 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all border ${settings.terminalMirroring === mode
                                                     ? 'bg-nexus-accent text-white border-nexus-accent'
                                                     : 'bg-nexus-bg-tertiary text-nexus-fg-muted border-nexus-border hover:text-nexus-fg-primary'
@@ -254,6 +273,7 @@ const SettingsModal: React.FC = () => {
                                                         placeholder="Auto-detected from folder name"
                                                         value={projectConfig?.name || ''}
                                                         onChange={(e) => updateProjectConfig({ name: e.target.value || undefined })}
+                                                        title="Custom display name for this project"
                                                         className="w-full px-3 py-2 rounded-xl bg-nexus-bg-primary border border-nexus-border text-xs text-nexus-fg-primary focus:outline-none focus:border-nexus-accent"
                                                     />
                                                     <p className="text-[10px] text-nexus-fg-muted">Custom display name for this project</p>
@@ -270,6 +290,7 @@ const SettingsModal: React.FC = () => {
                                                             const value = e.target.value === 'default' ? undefined : e.target.value === 'true';
                                                             updateProjectConfig({ braveMode: value });
                                                         }}
+                                                        title="Override global brave mode setting for this project"
                                                         className="px-3 py-1.5 rounded-xl bg-nexus-bg-primary border border-nexus-border text-xs text-nexus-fg-primary focus:outline-none focus:border-nexus-accent"
                                                     >
                                                         <option value="default">Use Global</option>
@@ -285,6 +306,7 @@ const SettingsModal: React.FC = () => {
                                                         placeholder="Use global model setting"
                                                         value={projectConfig?.model || ''}
                                                         onChange={(e) => updateProjectConfig({ model: e.target.value || undefined })}
+                                                        title="Override default Claude model for this project (e.g., claude-3-5-sonnet-20241022)"
                                                         className="w-full px-3 py-2 rounded-xl bg-nexus-bg-primary border border-nexus-border text-xs text-nexus-fg-primary focus:outline-none focus:border-nexus-accent font-mono"
                                                     />
                                                     <p className="text-[10px] text-nexus-fg-muted">Override default Claude model for this project</p>
@@ -297,6 +319,7 @@ const SettingsModal: React.FC = () => {
                                                         placeholder="/path/to/mcp-config.json"
                                                         value={projectConfig?.mcpConfigPath || ''}
                                                         onChange={(e) => updateProjectConfig({ mcpConfigPath: e.target.value || undefined })}
+                                                        title="Path to project-specific MCP configuration file"
                                                         className="w-full px-3 py-2 rounded-xl bg-nexus-bg-primary border border-nexus-border text-xs text-nexus-fg-primary focus:outline-none focus:border-nexus-accent font-mono"
                                                     />
                                                     <p className="text-[10px] text-nexus-fg-muted">Project-specific MCP configuration file</p>
@@ -312,6 +335,7 @@ const SettingsModal: React.FC = () => {
                                                             const value = e.target.value.split(',').map(s => s.trim()).filter(Boolean);
                                                             updateProjectConfig({ additionalDirs: value.length > 0 ? value : undefined });
                                                         }}
+                                                        title="Comma-separated paths for monorepo or multi-directory support"
                                                         className="w-full px-3 py-2 rounded-xl bg-nexus-bg-primary border border-nexus-border text-xs text-nexus-fg-primary focus:outline-none focus:border-nexus-accent font-mono"
                                                     />
                                                     <p className="text-[10px] text-nexus-fg-muted">Comma-separated paths for monorepo support</p>
@@ -327,6 +351,7 @@ const SettingsModal: React.FC = () => {
                                                             const value = e.target.value.split(',').map(s => s.trim()).filter(Boolean);
                                                             updateProjectConfig({ allowedTools: value.length > 0 ? value : undefined });
                                                         }}
+                                                        title="Whitelist of allowed MCP tools (comma-separated). Only these tools will be available."
                                                         className="w-full px-3 py-2 rounded-xl bg-nexus-bg-primary border border-nexus-border text-xs text-nexus-fg-primary focus:outline-none focus:border-nexus-accent font-mono"
                                                     />
                                                     <p className="text-[10px] text-nexus-fg-muted">Whitelist of allowed MCP tools (comma-separated)</p>
@@ -342,6 +367,7 @@ const SettingsModal: React.FC = () => {
                                                             const value = e.target.value.split(',').map(s => s.trim()).filter(Boolean);
                                                             updateProjectConfig({ disallowedTools: value.length > 0 ? value : undefined });
                                                         }}
+                                                        title="Blacklist of disallowed MCP tools (comma-separated). These tools will be blocked."
                                                         className="w-full px-3 py-2 rounded-xl bg-nexus-bg-primary border border-nexus-border text-xs text-nexus-fg-primary focus:outline-none focus:border-nexus-accent font-mono"
                                                     />
                                                     <p className="text-[10px] text-nexus-fg-muted">Blacklist of disallowed MCP tools (comma-separated)</p>
@@ -353,6 +379,7 @@ const SettingsModal: React.FC = () => {
                                             <button
                                                 onClick={saveProjectConfig}
                                                 disabled={configSaving}
+                                                title="Save project configuration to .sumerian/config.json"
                                                 className={`px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all border ${
                                                     configSaving
                                                         ? 'bg-nexus-bg-primary text-nexus-fg-muted border-nexus-border cursor-wait'
@@ -376,6 +403,7 @@ const SettingsModal: React.FC = () => {
                                     </div>
                                     <button
                                         onClick={() => updateSettings({ braveModeByDefault: !settings.braveModeByDefault })}
+                                        title={`${settings.braveModeByDefault ? 'Disable' : 'Enable'} brave mode by default for new sessions`}
                                         className={`w-10 h-5 rounded-full p-1 transition-all ${settings.braveModeByDefault ? 'bg-nexus-accent' : 'bg-nexus-bg-primary'}`}
                                     >
                                         <div className={`w-3 h-3 rounded-full bg-white transition-all ${settings.braveModeByDefault ? 'translate-x-5' : 'translate-x-0'}`} />
@@ -397,6 +425,7 @@ const SettingsModal: React.FC = () => {
                                             <button
                                                 onClick={handleRefreshModels}
                                                 disabled={isRefreshing}
+                                                title="Fetch latest Claude models from CLI"
                                                 className={`px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all border ${isRefreshing
                                                         ? 'bg-nexus-bg-primary text-nexus-fg-muted border-nexus-border cursor-wait'
                                                         : 'bg-nexus-accent text-white border-nexus-accent hover:shadow-[0_0_15px_rgba(59,130,246,0.5)]'
@@ -429,6 +458,7 @@ const SettingsModal: React.FC = () => {
                                                         window.sumerian.cli.setMaxBudgetUsd(null);
                                                     }
                                                 }}
+                                                title="Set a cost limit for agent operations in USD"
                                                 className="w-full px-3 py-2 rounded-xl bg-nexus-bg-primary border border-nexus-border text-xs text-nexus-fg-primary focus:outline-none focus:border-nexus-accent"
                                             />
                                             <p className="text-[10px] text-nexus-fg-muted">Set a cost limit for agent operations</p>
@@ -445,6 +475,7 @@ const SettingsModal: React.FC = () => {
                                                     updateSettings({ mcpConfigPath: value });
                                                     window.sumerian.cli.setMcpConfigPath(value || null);
                                                 }}
+                                                title="Path to global MCP configuration file"
                                                 className="w-full px-3 py-2 rounded-xl bg-nexus-bg-primary border border-nexus-border text-xs text-nexus-fg-primary focus:outline-none focus:border-nexus-accent font-mono"
                                             />
                                             <p className="text-[10px] text-nexus-fg-muted">Path to MCP configuration file</p>
@@ -461,6 +492,7 @@ const SettingsModal: React.FC = () => {
                                                     updateSettings({ additionalDirs: value.length > 0 ? value : undefined });
                                                     window.sumerian.cli.setAdditionalDirs(value);
                                                 }}
+                                                title="Comma-separated paths for monorepo or multi-directory support"
                                                 className="w-full px-3 py-2 rounded-xl bg-nexus-bg-primary border border-nexus-border text-xs text-nexus-fg-primary focus:outline-none focus:border-nexus-accent font-mono"
                                             />
                                             <p className="text-[10px] text-nexus-fg-muted">Comma-separated paths for monorepo support</p>
@@ -482,12 +514,14 @@ const SettingsModal: React.FC = () => {
                                 <div className="pt-4 flex space-x-4">
                                     <button 
                                         onClick={toggleDocsViewer}
+                                        title="Open documentation viewer"
                                         className="text-[10px] text-nexus-accent hover:underline uppercase tracking-widest font-bold"
                                     >
                                         Docs
                                     </button>
                                     <button 
                                         onClick={() => window.open('https://github.com/ymmc1111/Sumerian', '_blank')}
+                                        title="Open Sumerian GitHub repository"
                                         className="text-[10px] text-nexus-accent hover:underline uppercase tracking-widest font-bold"
                                     >
                                         GitHub

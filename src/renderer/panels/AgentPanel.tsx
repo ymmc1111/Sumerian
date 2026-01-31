@@ -72,7 +72,7 @@ const AgentPanel: React.FC<AgentPanelProps> = ({ slotId = 'C' }) => {
                                 </div>
                             </div>
                         )}
-                        <label className="flex items-center gap-2 cursor-pointer group">
+                        <label className="flex items-center gap-2 cursor-pointer group" title="Enable agent to automatically continue multi-step tasks without approval">
                             <input
                                 type="checkbox"
                                 checked={agent.autopilotMode}

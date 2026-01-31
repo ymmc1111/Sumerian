@@ -16,6 +16,7 @@
     "jsx": "react-jsx"
   },
   "include": [
-    "src/**/*"
+    "src/**/*",
+    "forge.env.d.ts"
   ]
 }
