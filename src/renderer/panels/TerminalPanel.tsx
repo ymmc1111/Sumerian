@@ -19,10 +19,8 @@ interface TerminalInstanceProps {
 const TerminalInstance: React.FC<TerminalInstanceProps> = ({ id, isActive }) => {
     const terminalRef = useRef<HTMLDivElement>(null);
     const xtermRef = useRef<XTerm | null>(null);
-    const fitAddonRef = useRef<FitAddon | null>(null);
     const [menuPos, setMenuPos] = useState<{ x: number, y: number } | null>(null);
-    const { project, ui } = useAppStore();
-    const { terminalMirroring } = ui.settings;
+    const { project } = useAppStore();
 
     const handleContextMenu = (e: React.MouseEvent) => {
         e.preventDefault();
@@ -53,8 +51,11 @@ const TerminalInstance: React.FC<TerminalInstanceProps> = ({ id, isActive }) => 
     };
 
     useEffect(() => {
-        if (!terminalRef.current || !window.sumerian?.terminal) {
-            console.warn('Terminal not initialized: container or API not available');
+        if (!terminalRef.current) return;
+        
+        // In detached windows, wait for project to be loaded
+        if (!project.rootPath) {
+            console.log('[Terminal] Waiting for project to load...');
             return;
         }
 
@@ -69,44 +70,13 @@ const TerminalInstance: React.FC<TerminalInstanceProps> = ({ id, isActive }) => 
         });
 
         const fitAddon = new FitAddon();
-        fitAddonRef.current = fitAddon;
         term.loadAddon(fitAddon);
         term.loadAddon(new WebLinksAddon());
 
-        xtermRef.current = term;
+        term.open(terminalRef.current);
+        fitAddon.fit();
 
-        // Use requestAnimationFrame to ensure DOM is ready, then open terminal
-        requestAnimationFrame(() => {
-            if (!terminalRef.current) return;
-            
-            try {
-                term.open(terminalRef.current);
-                
-                // Fit after a short delay to ensure terminal has rendered
-                setTimeout(() => {
-                    try {
-                        if (terminalRef.current && terminalRef.current.offsetWidth > 0) {
-                            fitAddon.fit();
-                        }
-                    } catch (e) {
-                        console.warn('Initial fit failed:', e);
-                    }
-                }, 100);
-            } catch (e) {
-                console.error('Failed to open terminal:', e);
-                // Retry once after a delay if initial open fails
-                setTimeout(() => {
-                    try {
-                        if (terminalRef.current) {
-                            term.open(terminalRef.current);
-                            setTimeout(() => fitAddon.fit(), 100);
-                        }
-                    } catch (retryError) {
-                        console.error('Terminal initialization failed after retry:', retryError);
-                    }
-                }, 200);
-            }
-        });
+        xtermRef.current = term;
 
         // Initialize terminal via IPC
         window.sumerian.terminal.create(id, project.rootPath || './');
@@ -128,75 +98,28 @@ const TerminalInstance: React.FC<TerminalInstanceProps> = ({ id, isActive }) => 
 
         window.addEventListener('resize', resizeHandler);
 
-        // Add ResizeObserver to detect panel height changes
-        const resizeObserver = new ResizeObserver(() => {
-            requestAnimationFrame(() => {
-                try {
-                    fitAddon.fit();
-                    if (term.cols && term.rows) {
-                        window.sumerian.terminal.resize(id, term.cols, term.rows);
-                    }
-                } catch (e) {
-                    // Terminal not ready yet
-                }
-            });
-        });
-
-        if (terminalRef.current) {
-            resizeObserver.observe(terminalRef.current);
-        }
-
         // Listen for CLI output to mirror it
-        let cleanupCLI = () => { };
-
-        if ((id === 'default' || id === 'mirror') && window.sumerian?.cli) {
-            if (terminalMirroring === 'raw') {
-                cleanupCLI = window.sumerian.cli.onOutput((output) => {
-                    term.write(`\r\n\x1b[36m[agent]\x1b[0m ${output.content}`);
-                });
-            } else if (terminalMirroring === 'formatted') {
-                const cleanupTool = window.sumerian.cli.onToolAction((action) => {
-                    if (action.type === 'use') {
-                        term.write(`\r\n\x1b[35m[agent:tool]\x1b[0m Using \x1b[1m${action.name}\x1b[0m...\r\n`);
-                    } else if (action.type === 'result') {
-                        const color = action.isError ? '\x1b[31m' : '\x1b[32m';
-                        term.write(`\x1b[35m[agent:tool]\x1b[0m Result: ${color}${action.isError ? 'Error' : 'Success'}\x1b[0m\r\n`);
-                    }
-                });
-
-                const cleanupStatus = window.sumerian.cli.onAgentStatus((status) => {
-                    if (status.status === 'complete') {
-                        term.write(`\x1b[36m[agent]\x1b[0m Response complete.\r\n`);
-                    }
-                });
-
-                cleanupCLI = () => {
-                    cleanupTool();
-                    cleanupStatus();
-                };
+        const cleanupCLI = window.sumerian.cli.onOutput((output) => {
+            if (id === 'default' || id === 'mirror') {
+                term.write(`\r\n\x1b[36m[agent]\x1b[0m ${output.content}`);
             }
-        }
+        });
 
         return () => {
             cleanupData();
             cleanupCLI();
             window.removeEventListener('resize', resizeHandler);
-            resizeObserver.disconnect();
             term.dispose();
         };
-    }, [id, terminalMirroring]); // Now terminalMirroring is in the dependency array, so the effect will re-run if it changes.
+    }, [id, project.rootPath]);
 
     useEffect(() => {
-        if (isActive && xtermRef.current && fitAddonRef.current) {
+        if (isActive && xtermRef.current) {
             xtermRef.current.focus();
-            // Refit on activation using existing addon
-            requestAnimationFrame(() => {
-                try {
-                    fitAddonRef.current?.fit();
-                } catch (e) {
-                    // Terminal not ready yet
-                }
-            });
+            // Refit on activation
+            const fitAddon = new FitAddon();
+            xtermRef.current.loadAddon(fitAddon);
+            setTimeout(() => fitAddon.fit(), 10);
         }
     }, [isActive]);
 
@@ -226,48 +149,7 @@ interface TerminalPanelProps {
 }
 
 const TerminalPanel: React.FC<TerminalPanelProps> = ({ slotId = 'D' }) => {
-    const { ui, workforce, terminateAgent } = useAppStore();
-    const [layout, setLayout] = useState<'tabs' | 'grid'>('tabs');
-    const [focusedTerminal, setFocusedTerminal] = useState<string>(ui.activeTerminalId || 'default');
-    const [isHalting, setIsHalting] = useState(false);
-
-    const activeAgents = Array.from(workforce.activeAgents.values());
-    
-    // Combine main terminals with agent terminals
-    const allTerminals = [
-        ...ui.terminals,
-        ...activeAgents.map(agent => ({
-            id: `agent-${agent.id}`,
-            name: `Agent: ${agent.id.slice(0, 8)}`
-        }))
-    ];
-
-    const handleTerminalClick = (termId: string) => {
-        setFocusedTerminal(termId);
-        if (!termId.startsWith('agent-')) {
-            // Only set active terminal for non-agent terminals
-            const { setActiveTerminal } = useAppStore.getState();
-            setActiveTerminal(termId);
-        }
-    };
-
-    const handleHaltAll = async () => {
-        if (activeAgents.length === 0) return;
-        
-        if (confirm(`Kill all ${activeAgents.length} active agent(s)? This cannot be undone.`)) {
-            setIsHalting(true);
-            try {
-                // Kill all agents in parallel
-                await Promise.all(
-                    activeAgents.map(agent => terminateAgent(agent.id))
-                );
-            } catch (error) {
-                console.error('Failed to halt all agents:', error);
-            } finally {
-                setIsHalting(false);
-            }
-        }
-    };
+    const { ui, createTerminal, closeTerminal, setActiveTerminal } = useAppStore();
 
     return (
         <div className="w-full h-full bg-nexus-bg-primary flex flex-col border-t border-nexus-border">
@@ -276,100 +158,56 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ slotId = 'D' }) => {
                 panelType="terminal"
                 slotId={slotId}
                 icon={<Terminal className="w-4 h-4" />}
-                actions={
-                    <div className="flex items-center gap-2">
-                        {activeAgents.length > 0 && (
+            />
+            
+            {/* Terminal Tabs */}
+            <div className="flex items-center border-b border-nexus-border bg-nexus-bg-secondary overflow-x-auto">
+                {ui.terminals.map((term) => (
+                    <div
+                        key={term.id}
+                        className={`group flex items-center h-8 px-3 min-w-[100px] max-w-[180px] border-r border-nexus-border cursor-pointer transition-colors ${
+                            ui.activeTerminalId === term.id
+                                ? 'bg-nexus-bg-primary text-nexus-accent'
+                                : 'text-nexus-fg-muted hover:bg-nexus-bg-tertiary'
+                        }`}
+                        onClick={() => setActiveTerminal(term.id)}
+                    >
+                        <Terminal className={`w-3 h-3 mr-2 shrink-0 ${ui.activeTerminalId === term.id ? 'text-nexus-accent' : ''}`} />
+                        <span className="text-[10px] font-medium truncate flex-1">
+                            {term.name}
+                        </span>
+                        {ui.terminals.length > 1 && (
                             <button
-                                onClick={handleHaltAll}
-                                disabled={isHalting}
-                                className="px-2 py-1 rounded bg-red-500 text-white text-[10px] font-bold hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                title="Kill all active agents"
+                                className="opacity-0 group-hover:opacity-100 ml-1 p-0.5 hover:bg-nexus-border rounded transition-all shrink-0"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    closeTerminal(term.id);
+                                }}
                             >
-                                {isHalting ? 'HALTING...' : 'HALT ALL'}
-                            </button>
-                        )}
-                        {allTerminals.length > 1 && (
-                            <button
-                                onClick={() => setLayout(layout === 'tabs' ? 'grid' : 'tabs')}
-                                className="icon-btn"
-                                title={layout === 'tabs' ? 'Grid View' : 'Tab View'}
-                            >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    {layout === 'tabs' ? (
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM14 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zM14 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
-                                    ) : (
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                                    )}
-                                </svg>
+                                <span className="text-xs">×</span>
                             </button>
                         )}
                     </div>
-                }
-            />
+                ))}
+                <button
+                    className="p-2 hover:bg-nexus-bg-tertiary text-nexus-fg-muted transition-colors shrink-0"
+                    onClick={() => createTerminal()}
+                    title="New Terminal"
+                >
+                    <span className="text-sm font-bold">+</span>
+                </button>
+            </div>
 
-            {/* Terminal Tabs */}
-            {layout === 'tabs' && (
-                <div className="flex items-center border-b border-nexus-border bg-nexus-bg-secondary overflow-x-auto">
-                    {allTerminals.map((term) => {
-                        const isAgent = term.id.startsWith('agent-');
-                        const isActive = focusedTerminal === term.id;
-                        
-                        return (
-                            <button
-                                key={term.id}
-                                onClick={() => handleTerminalClick(term.id)}
-                                className={`px-3 py-2 text-xs font-medium whitespace-nowrap border-r border-nexus-border transition-colors ${
-                                    isActive
-                                        ? 'bg-nexus-bg-primary text-nexus-accent border-b-2 border-b-nexus-accent'
-                                        : 'text-nexus-fg-muted hover:text-nexus-fg-secondary hover:bg-nexus-bg-tertiary'
-                                }`}
-                            >
-                                {isAgent && '🤖 '}
-                                {term.name}
-                            </button>
-                        );
-                    })}
-                </div>
-            )}
-
-            {/* Terminal Content */}
-            {layout === 'tabs' ? (
-                <div className="flex-1 overflow-hidden p-2">
-                    {ui.terminals.map((term) => (
+            <div className="flex-1 overflow-hidden relative">
+                {ui.terminals.map((term) => (
+                    <div key={term.id} className={`absolute inset-0 ${ui.activeTerminalId === term.id ? 'block' : 'hidden'}`}>
                         <TerminalInstance
-                            key={term.id}
                             id={term.id}
-                            isActive={focusedTerminal === term.id}
+                            isActive={ui.activeTerminalId === term.id}
                         />
-                    ))}
-                    {activeAgents.map((agent) => (
-                        <TerminalInstance
-                            key={`agent-${agent.id}`}
-                            id={`agent-${agent.id}`}
-                            isActive={focusedTerminal === `agent-${agent.id}`}
-                        />
-                    ))}
-                </div>
-            ) : (
-                <div className="flex-1 grid grid-cols-2 gap-2 p-2 overflow-hidden">
-                    {allTerminals.slice(0, 4).map((term) => (
-                        <div
-                            key={term.id}
-                            className="border border-nexus-border rounded overflow-hidden bg-nexus-bg-secondary"
-                        >
-                            <div className="px-2 py-1 bg-nexus-bg-tertiary border-b border-nexus-border text-[10px] text-nexus-fg-muted">
-                                {term.name}
-                            </div>
-                            <div className="h-[calc(100%-24px)]">
-                                <TerminalInstance
-                                    id={term.id}
-                                    isActive={true}
-                                />
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            )}
+                    </div>
+                ))}
+            </div>
         </div>
     );
 };

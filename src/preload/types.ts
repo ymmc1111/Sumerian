@@ -87,6 +87,7 @@ export interface SumerianAPI {
         create: (id: string, cwd: string) => Promise<boolean>;
         write: (id: string, data: string) => Promise<void>;
         resize: (id: string, cols: number, rows: number) => Promise<void>;
+        kill: (id: string) => Promise<boolean>;
         onData: (id: string, callback: (data: string) => void) => () => void;
         onExit: (id: string, callback: (info: any) => void) => () => void;
     };

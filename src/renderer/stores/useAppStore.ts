@@ -557,6 +557,22 @@ export const useAppStore = create<AppState>()(
                     await window.sumerian.cli.send(finalContent, get().agent.braveMode);
                 } catch (error) {
                     console.error('Failed to send message to CLI:', error);
+                    
+                    // Add error message to chat
+                    const errorMessage = {
+                        id: Date.now().toString(),
+                        role: 'agent' as const,
+                        content: `❌ **Error**: ${error instanceof Error ? error.message : 'Failed to send message'}\n\n${error instanceof Error && error.message.includes('No project open') ? 'Please open a project folder using **⌘O** or the Command Palette.' : 'Please check the console for details.'}`,
+                        timestamp: Date.now(),
+                        status: 'sent' as const
+                    };
+                    
+                    set((state) => ({
+                        agent: {
+                            ...state.agent,
+                            messages: [...state.agent.messages, errorMessage]
+                        }
+                    }));
                 }
             },
             addAgentMessage: (content) => {
@@ -1043,6 +1059,17 @@ export const useAppStore = create<AppState>()(
                     window.sumerian.cli.onOutput((output) => {
                         // Error sensing logic
                         const content = output.content;
+                        
+                        // Ignore shell initialization errors and warnings
+                        const ignorePatterns = [
+                            /compinit:/i,
+                            /command not found: ng/i,
+                            /no such file or directory:.*zsh/i,
+                            /\.zshrc:/i,
+                        ];
+                        
+                        const shouldIgnore = ignorePatterns.some(p => p.test(content));
+                        
                         const errorPatterns = [
                             /TS[0-9]+:/i,
                             /Error: /i,
@@ -1053,7 +1080,7 @@ export const useAppStore = create<AppState>()(
                         ];
 
                         const hasError = errorPatterns.some(p => p.test(content));
-                        if (hasError && !get().agent.healingLoopActive) {
+                        if (hasError && !shouldIgnore && !get().agent.healingLoopActive) {
                             set((state) => ({ agent: { ...state.agent, lastTerminalError: content } }));
 
                             // Clear error after 15 seconds

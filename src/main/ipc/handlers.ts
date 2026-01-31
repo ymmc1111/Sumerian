@@ -105,6 +105,12 @@ export function setupHandlers() {
     ipcMain.handle('terminal:resize', async (_event, { id, cols, rows }: { id: string, cols: number, rows: number }) => {
         terminalManager.resize(id, cols, rows);
     });
+
+    ipcMain.handle('terminal:kill', async (_event, { id }: { id: string }) => {
+        terminalManager.kill(id);
+        return true;
+    });
+
     ipcMain.handle('cli:send', async (_event, { content, braveMode }: { content: string, braveMode: boolean }) => {
         const cliManager = getActiveCLIManager();
         if (!cliManager) {
