@@ -55,7 +55,7 @@ export const PanelHeader: React.FC<PanelHeaderProps> = ({
       className={`
         h-12 min-h-[48px] flex items-center justify-between
         px-3 select-none overflow-visible
-        bg-[#1a1a1a] border-b border-[#2a2a2a]
+        bg-[#1a1a1a] border-b border-nexus-border
         ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}
       `}
       onMouseDown={handleMouseDown}

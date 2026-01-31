@@ -164,12 +164,12 @@ const App: React.FC = () => {
                 <SettingsModal />
                 <CommandPalette />
                 <ShortcutsHelp />
-                <ProjectSwitcher 
-                    isOpen={ui.isProjectSwitcherOpen} 
-                    onClose={toggleProjectSwitcher} 
+                <ProjectSwitcher
+                    isOpen={ui.isProjectSwitcherOpen}
+                    onClose={toggleProjectSwitcher}
                 />
-                <DocsViewer 
-                    isOpen={ui.isDocsViewerOpen} 
+                <DocsViewer
+                    isOpen={ui.isDocsViewerOpen}
                     onClose={toggleDocsViewer}
                     initialDocId={ui.activeDocId}
                 />
@@ -189,9 +189,8 @@ const App: React.FC = () => {
                             width: slots.A.isCollapsed ? '4px' : `${slots.A.width}px`,
                             transition: isDragging ? 'none' : 'width 200ms ease-out'
                         }}
-                        className={`flex-shrink-0 relative ${slots.A.isCollapsed ? 'overflow-hidden' : ''} ${
-                            isDragging && targetSlotId === 'A' ? 'ring-4 ring-blue-500/50 ring-inset' : ''
-                        }`}
+                        className={`flex-shrink-0 relative border-r border-nexus-border ${slots.A.isCollapsed ? 'overflow-hidden' : ''} ${isDragging && targetSlotId === 'A' ? 'ring-4 ring-blue-500/50 ring-inset' : ''
+                            }`}
                     >
                         {!slots.A.isCollapsed && <PanelComponent panelType={slots.A.panelType} slotId="A" />}
                         {!slots.A.isCollapsed && (
@@ -205,9 +204,8 @@ const App: React.FC = () => {
                     <div className="flex-1 flex min-h-0 min-w-0 relative">
                         {/* Slot B - Center panel (default: editor) */}
                         {!isPanelDetached(slots.B.panelType) && (
-                            <div className={`${isPanelDetached(slots.C.panelType) ? 'flex-1' : 'flex-1'} min-w-0 relative ${
-                                isDragging && targetSlotId === 'B' ? 'ring-4 ring-blue-500/50 ring-inset' : ''
-                            }`}>
+                            <div className={`${isPanelDetached(slots.C.panelType) ? 'flex-1' : 'flex-1'} min-w-0 relative ${isDragging && targetSlotId === 'B' ? 'ring-4 ring-blue-500/50 ring-inset' : ''
+                                }`}>
                                 <PanelComponent panelType={slots.B.panelType} slotId="B" />
                             </div>
                         )}
@@ -219,15 +217,14 @@ const App: React.FC = () => {
                                     width: isPanelDetached(slots.B.panelType)
                                         ? undefined
                                         : slots.C.isCollapsed
-                                        ? '4px'
-                                        : mode === 'agent-first'
-                                            ? '50%'
-                                            : `${slots.C.width}px`,
+                                            ? '4px'
+                                            : mode === 'agent-first'
+                                                ? '50%'
+                                                : `${slots.C.width}px`,
                                     transition: isDragging ? 'none' : 'width 200ms ease-out'
                                 }}
-                                className={`${isPanelDetached(slots.B.panelType) ? 'flex-1' : 'flex-shrink-0'} ${!isPanelDetached(slots.B.panelType) ? 'border-l border-nexus-border' : ''} relative ${slots.C.isCollapsed ? 'overflow-hidden' : ''} ${
-                                    isDragging && targetSlotId === 'C' ? 'ring-4 ring-blue-500/50 ring-inset' : ''
-                                }`}
+                                className={`${isPanelDetached(slots.B.panelType) ? 'flex-1' : 'flex-shrink-0'} ${!isPanelDetached(slots.B.panelType) ? 'border-l border-nexus-border' : ''} relative ${slots.C.isCollapsed ? 'overflow-hidden' : ''} ${isDragging && targetSlotId === 'C' ? 'ring-4 ring-blue-500/50 ring-inset' : ''
+                                    }`}
                             >
                                 {!slots.C.isCollapsed && <PanelComponent panelType={slots.C.panelType} slotId="C" />}
                                 {!slots.C.isCollapsed && !isPanelDetached(slots.B.panelType) && (
@@ -244,9 +241,8 @@ const App: React.FC = () => {
                                 height: slots.D.isCollapsed ? '4px' : `${slots.D.height}px`,
                                 transition: isDragging ? 'none' : 'height 200ms ease-out'
                             }}
-                            className={`flex-shrink-0 border-t border-nexus-border relative ${slots.D.isCollapsed ? 'overflow-hidden' : ''} ${
-                                isDragging && targetSlotId === 'D' ? 'ring-4 ring-blue-500/50 ring-inset' : ''
-                            }`}
+                            className={`flex-shrink-0 border-t border-nexus-border relative ${slots.D.isCollapsed ? 'overflow-hidden' : ''} ${isDragging && targetSlotId === 'D' ? 'ring-4 ring-blue-500/50 ring-inset' : ''
+                                }`}
                         >
                             {!slots.D.isCollapsed && <PanelComponent panelType={slots.D.panelType} slotId="D" />}
                             {!slots.D.isCollapsed && (
@@ -259,12 +255,12 @@ const App: React.FC = () => {
             <SettingsModal />
             <CommandPalette />
             <ShortcutsHelp />
-            <ProjectSwitcher 
-                isOpen={ui.isProjectSwitcherOpen} 
-                onClose={toggleProjectSwitcher} 
+            <ProjectSwitcher
+                isOpen={ui.isProjectSwitcherOpen}
+                onClose={toggleProjectSwitcher}
             />
-            <DocsViewer 
-                isOpen={ui.isDocsViewerOpen} 
+            <DocsViewer
+                isOpen={ui.isDocsViewerOpen}
                 onClose={toggleDocsViewer}
                 initialDocId={ui.activeDocId}
             />

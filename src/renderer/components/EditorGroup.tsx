@@ -100,16 +100,14 @@ export const EditorGroup: React.FC<EditorGroupProps> = ({
   };
 
   return (
-    <div 
-      className={`flex flex-col h-full bg-nexus-bg-primary ${
-        isActive ? 'ring-2 ring-blue-500/30 ring-inset' : ''
-      }`}
+    <div
+      className="flex flex-col h-full bg-nexus-bg-primary"
       onClick={() => setActiveGroup(group.id)}
     >
       {/* Group Header with Tabs */}
       <div className="flex items-center h-10 border-b border-nexus-border bg-nexus-bg-secondary">
         {/* Tabs Container */}
-        <div 
+        <div
           ref={tabsContainerRef}
           className="flex-1 flex overflow-x-hidden"
           style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
@@ -147,9 +145,8 @@ export const EditorGroup: React.FC<EditorGroupProps> = ({
               <button
                 onClick={() => scrollTabs('left')}
                 disabled={!canScrollLeft}
-                className={`p-1.5 hover:bg-nexus-bg-tertiary transition-colors ${
-                  !canScrollLeft ? 'opacity-30 cursor-not-allowed' : 'text-nexus-fg-muted hover:text-nexus-fg-primary'
-                }`}
+                className={`p-1.5 hover:bg-nexus-bg-tertiary transition-colors ${!canScrollLeft ? 'opacity-30 cursor-not-allowed' : 'text-nexus-fg-muted hover:text-nexus-fg-primary'
+                  }`}
                 title="Scroll Left"
               >
                 <ChevronLeft className="w-3.5 h-3.5" />
@@ -157,9 +154,8 @@ export const EditorGroup: React.FC<EditorGroupProps> = ({
               <button
                 onClick={() => scrollTabs('right')}
                 disabled={!canScrollRight}
-                className={`p-1.5 hover:bg-nexus-bg-tertiary transition-colors ${
-                  !canScrollRight ? 'opacity-30 cursor-not-allowed' : 'text-nexus-fg-muted hover:text-nexus-fg-primary'
-                }`}
+                className={`p-1.5 hover:bg-nexus-bg-tertiary transition-colors ${!canScrollRight ? 'opacity-30 cursor-not-allowed' : 'text-nexus-fg-muted hover:text-nexus-fg-primary'
+                  }`}
                 title="Scroll Right"
               >
                 <ChevronRight className="w-3.5 h-3.5" />
@@ -176,11 +172,11 @@ export const EditorGroup: React.FC<EditorGroupProps> = ({
             >
               <MoreHorizontal className="w-3.5 h-3.5" />
             </button>
-            
+
             {showDropdown && (
               <>
-                <div 
-                  className="fixed inset-0 z-10" 
+                <div
+                  className="fixed inset-0 z-10"
                   onClick={() => setShowDropdown(false)}
                 />
                 <div className="absolute right-0 top-full mt-1 w-48 bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg shadow-lg z-20 py-1">
