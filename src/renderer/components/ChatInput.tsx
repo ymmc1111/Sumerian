@@ -2,23 +2,31 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useAppStore } from '../stores/useAppStore';
 import { FileNode } from '../stores/types';
 import { useImageSupport } from '../hooks/useImageSupport';
-import { Send, Zap, Eye, FileText, Terminal, Trash2, Shield, Layout, Ghost, Book, Image as ImageIcon, X as CloseIcon, MessageSquare, Code } from 'lucide-react';
+import { Send, Zap, Eye, FileText, Terminal, Trash2, Shield, Layout, Ghost, Book, Image as ImageIcon, X as CloseIcon, MessageSquare, Code, Clock } from 'lucide-react';
 import ModelSelector from './ModelSelector';
 
 const COMMANDS = [
     { id: 'clear', label: '/clear', description: 'Clear chat history', icon: Trash2 },
     { id: 'brave', label: '/brave', description: 'Toggle Brave Mode', icon: Shield },
+    { id: 'batch', label: '/batch', description: 'Queue loop for overnight processing', icon: Clock },
+    { id: 'checkpoint', label: '/checkpoint', description: 'Create labeled checkpoint', icon: FileText },
     { id: 'layout', label: '/layout', description: 'Cycle UI Layout', icon: Layout },
     { id: 'lore', label: '/lore', description: 'Refresh Project Lore', icon: Ghost },
     { id: 'prune', label: '/prune', description: 'Prune history to last 20 msgs', icon: Trash2 },
+    { id: 'compact', label: '/compact', description: 'Summarize & auto-compact context', icon: Book },
+    { id: 'context', label: '/context', description: 'Show context usage stats', icon: Zap },
+    { id: 'review', label: '/review', description: 'Request structured code review', icon: Eye },
     { id: 'summarize', label: '/summarize', description: 'Ask Agent to summarize & prune', icon: Book },
     { id: 'plan', label: '/plan', description: 'Switch to Planning Mode', icon: MessageSquare },
     { id: 'code', label: '/code', description: 'Switch to Code Mode', icon: Code },
+    { id: 'spawn', label: '/spawn', description: 'Spawn specialized agent', icon: Zap },
 ];
+
+const PERSONAS = ['conductor', 'architect', 'builder', 'tester', 'documenter'];
 
 const ChatInput: React.FC = () => {
     const [content, setContent] = useState('');
-    const { sendMessage, setAutoContextEnabled, setBraveMode, setMode, clearHistory, pruneHistory, refreshLore, agent, project } = useAppStore();
+    const { sendMessage, setAutoContextEnabled, setBraveMode, setMode, clearHistory, pruneHistory, refreshLore, startLoop, cancelLoop, spawnAgent, addAgentMessage, addTaskToQueue, agent, project } = useAppStore();
     const { pendingImages, isDragging, setIsDragging, handlePaste, handleDrop, removeImage, clearPendingImages } = useImageSupport();
     const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -134,6 +142,71 @@ const ChatInput: React.FC = () => {
                 setContent('');
                 return;
             }
+            if (trimmed === '/context') {
+                e.preventDefault();
+                if (agent.usage) {
+                    const maxContext = 200000;
+                    const percentageNum = (agent.usage.input / maxContext) * 100;
+                    const percentage = percentageNum.toFixed(1);
+                    const remaining = maxContext - agent.usage.input;
+                    const contextPrompt = `Current context usage:
+- Input tokens: ${agent.usage.input.toLocaleString()}
+- Output tokens: ${agent.usage.output.toLocaleString()}
+- Total tokens: ${(agent.usage.input + agent.usage.output).toLocaleString()}
+- Context capacity: ${percentage}% used
+- Remaining capacity: ~${remaining.toLocaleString()} tokens
+
+${percentageNum > 80 ? '⚠️ Context is nearly full. Consider using /compact to free up space.' : percentageNum > 60 ? '⚡ Context usage is moderate.' : '✅ Context usage is healthy.'}`;
+                    sendMessage(contextPrompt);
+                } else {
+                    sendMessage('No context usage data available yet. Send a message first.');
+                }
+                setContent('');
+                return;
+            }
+            if (trimmed === '/compact') {
+                e.preventDefault();
+                const summaryPrompt = 'Please provide a concise summary of our conversation so far, focusing on key decisions, implementations, and current state. Keep it brief but comprehensive.';
+                sendMessage(summaryPrompt);
+                setContent('');
+                
+                // Schedule auto-prune after agent response (wait for completion)
+                // We'll use a simple timeout approach - in production this should listen to completion events
+                setTimeout(() => {
+                    pruneHistory();
+                }, 5000); // 5 second delay to allow response to complete
+                return;
+            }
+            if (trimmed === '/review' || trimmed.startsWith('/review ')) {
+                e.preventDefault();
+                const files = trimmed === '/review' ? 'recent changes' : trimmed.replace('/review ', '');
+                const reviewPrompt = `Please review ${files} with the following structure:
+
+## Code Review
+
+### ✅ Strengths
+- What's done well
+
+### ⚠️ Issues
+- Bugs or problems found
+- Security concerns
+- Performance issues
+
+### 💡 Suggestions
+- Improvements
+- Best practices
+- Refactoring opportunities
+
+### 📋 Checklist
+- [ ] Tests included
+- [ ] Error handling
+- [ ] Documentation
+- [ ] Type safety`;
+                
+                sendMessage(reviewPrompt);
+                setContent('');
+                return;
+            }
             if (trimmed === '/summarize') {
                 e.preventDefault();
                 sendMessage('Please provide a concise summary of our progress so far, and then I will prune the history.');
@@ -149,6 +222,99 @@ const ChatInput: React.FC = () => {
             if (trimmed === '/code') {
                 e.preventDefault();
                 setMode('code');
+                setContent('');
+                return;
+            }
+            
+            // Parse /checkpoint command: /checkpoint "label"
+            const checkpointMatch = trimmed.match(/^\/checkpoint\s+"([^"]+)"$/);
+            if (checkpointMatch) {
+                e.preventDefault();
+                const label = checkpointMatch[1];
+                
+                // Get all open files to checkpoint
+                const openFilePaths = allFiles.map(f => f.path);
+                
+                window.sumerian.files.createCheckpoint(label, openFilePaths)
+                    .then((checkpointId) => {
+                        addAgentMessage(`✅ Checkpoint created: "${label}" (${checkpointId})`);
+                    })
+                    .catch((error) => {
+                        addAgentMessage(`❌ Failed to create checkpoint: ${error.message}`);
+                    });
+                
+                setContent('');
+                return;
+            }
+            
+            // Parse /batch command: /batch "prompt" --promise "DONE" --max 20
+            const batchMatch = trimmed.match(/^\/batch\s+"([^"]+)"(?:\s+--promise\s+"([^"]+)")?(?:\s+--max\s+(\d+))?$/);
+            if (batchMatch) {
+                e.preventDefault();
+                const prompt = batchMatch[1];
+                const promise = batchMatch[2] || 'COMPLETE';
+                const max = parseInt(batchMatch[3] || '20', 10);
+                
+                addTaskToQueue({
+                    id: `batch-${Date.now()}`,
+                    type: 'loop',
+                    content: prompt,
+                    config: { prompt, promise, maxIterations: max },
+                    status: 'pending',
+                    createdAt: Date.now()
+                });
+                
+                addAgentMessage(`✅ Added to batch queue: "${prompt.substring(0, 50)}${prompt.length > 50 ? '...' : ''}"`);
+                setContent('');
+                return;
+            }
+            
+            // Parse /loop command: /loop "prompt" --promise "DONE" --max 20
+            const loopMatch = trimmed.match(/^\/loop\s+"([^"]+)"(?:\s+--promise\s+"([^"]+)")?(?:\s+--max\s+(\d+))?$/);
+            if (loopMatch) {
+                e.preventDefault();
+                const prompt = loopMatch[1];
+                const promise = loopMatch[2] || 'COMPLETE';
+                const max = parseInt(loopMatch[3] || '20', 10);
+                startLoop(prompt, promise, max);
+                setContent('');
+                return;
+            }
+            
+            if (trimmed === '/cancel-loop') {
+                e.preventDefault();
+                cancelLoop();
+                setContent('');
+                return;
+            }
+            
+            // Parse /spawn command: /spawn <persona> "<task>" [--model <model>] [--dir <path>]
+            const spawnMatch = trimmed.match(/^\/spawn\s+(\w+)\s+"([^"]+)"(?:\s+--model\s+(\w+))?(?:\s+--dir\s+"([^"]+)")?$/);
+            if (spawnMatch) {
+                e.preventDefault();
+                const [, personaId, task, model, dir] = spawnMatch;
+                
+                if (!PERSONAS.includes(personaId.toLowerCase())) {
+                    addAgentMessage(`❌ Unknown persona: ${personaId}. Available: ${PERSONAS.join(', ')}`);
+                    setContent('');
+                    return;
+                }
+                
+                // Create persona config
+                const persona = {
+                    id: personaId.toLowerCase(),
+                    model: model || 'claude-sonnet-4-5-20250929',
+                    systemPrompt: '',
+                    allowedTools: ['*'] as string[],
+                    disallowedTools: [] as string[]
+                };
+                
+                spawnAgent(persona, task, dir).then((agentId) => {
+                    addAgentMessage(`✅ Spawned ${personaId} agent (${agentId}): ${task}`);
+                }).catch((error) => {
+                    addAgentMessage(`❌ Failed to spawn agent: ${error.message}`);
+                });
+                
                 setContent('');
                 return;
             }

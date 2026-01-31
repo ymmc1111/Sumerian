@@ -35,11 +35,38 @@ contextBridge.exposeInMainWorld('sumerian', {
             return () => ipcRenderer.removeAllListeners('cli:status');
         },
         setModel: (model: string) => ipcRenderer.invoke('cli:setModel', model),
+        setMaxBudgetUsd: (budget: number | null) => ipcRenderer.invoke('cli:setMaxBudgetUsd', budget),
+        setMcpConfigPath: (path: string | null) => ipcRenderer.invoke('cli:setMcpConfigPath', path),
+        setAdditionalDirs: (dirs: string[]) => ipcRenderer.invoke('cli:setAdditionalDirs', dirs),
+        setAllowedTools: (tools: string[]) => ipcRenderer.invoke('cli:setAllowedTools', tools),
+        setDisallowedTools: (tools: string[]) => ipcRenderer.invoke('cli:setDisallowedTools', tools),
         listModels: () => ipcRenderer.invoke('cli:listModels'),
         refreshModels: () => ipcRenderer.invoke('cli:refreshModels'),
         onModelsUpdated: (callback: (models: any[]) => void) => {
             ipcRenderer.on('cli:models-updated', (_event, value) => callback(value));
             return () => ipcRenderer.removeAllListeners('cli:models-updated');
+        },
+        startLoop: (prompt: string, completionPromise: string, maxIterations: number) => 
+            ipcRenderer.invoke('cli:start-loop', prompt, completionPromise, maxIterations),
+        cancelLoop: () => ipcRenderer.invoke('cli:cancel-loop'),
+        onLoopIteration: (callback: (data: { iteration: number; max: number }) => void) => {
+            ipcRenderer.on('cli:loop-iteration', (_event, value) => callback(value));
+            return () => ipcRenderer.removeAllListeners('cli:loop-iteration');
+        },
+        onLoopComplete: (callback: (data: { reason: 'promise' | 'max_iterations' | 'cancelled' }) => void) => {
+            ipcRenderer.on('cli:loop-complete', (_event, value) => callback(value));
+            return () => ipcRenderer.removeAllListeners('cli:loop-complete');
+        },
+        spawnAgent: (persona: any, task: string, workingDir?: string) => 
+            ipcRenderer.invoke('cli:spawn-agent', { persona, task, workingDir }),
+        terminateAgent: (agentId: string) => ipcRenderer.invoke('cli:terminate-agent', agentId),
+        getAgent: (agentId: string) => ipcRenderer.invoke('cli:get-agent', agentId),
+        getAllAgents: () => ipcRenderer.invoke('cli:get-all-agents'),
+        killAll: () => ipcRenderer.invoke('cli:kill-all'),
+        onResourceUpdate: (callback: (data: { agentId: string; cpu: number; memory: number }) => void) => {
+            const handler = (_event: any, value: any) => callback(value);
+            ipcRenderer.on('workforce:resource-update', handler);
+            return () => ipcRenderer.removeListener('workforce:resource-update', handler);
         },
     },
     session: {
@@ -56,6 +83,13 @@ contextBridge.exposeInMainWorld('sumerian', {
         select: () => ipcRenderer.invoke('project:select'),
         getRecent: () => ipcRenderer.invoke('project:getRecent'),
         clearRecent: () => ipcRenderer.invoke('project:clearRecent'),
+        listRecent: (limit?: number) => ipcRenderer.invoke('project:list-recent', limit),
+        get: (path: string) => ipcRenderer.invoke('project:get', path),
+        remove: (path: string) => ipcRenderer.invoke('project:remove', path),
+        updateConfig: (path: string, config: any) => ipcRenderer.invoke('project:update-config', { projectPath: path, config }),
+        loadConfig: (path: string) => ipcRenderer.invoke('project:load-config', path),
+        saveConfig: (path: string, config: any) => ipcRenderer.invoke('project:save-config', { projectPath: path, config }),
+        updateSession: (path: string, sessionId: string) => ipcRenderer.invoke('project:update-session', { projectPath: path, sessionId }),
     },
     terminal: {
         create: (id: string, cwd: string) => ipcRenderer.invoke('terminal:create', { id, cwd }),
@@ -87,9 +121,19 @@ contextBridge.exposeInMainWorld('sumerian', {
             return () => ipcRenderer.removeAllListeners('file:changed');
         },
         saveImage: (path: string, base64Data: string) => ipcRenderer.invoke('file:saveImage', { path, base64Data }),
+        createCheckpoint: (label: string, files: string[]) => ipcRenderer.invoke('checkpoint:create', { label, files }),
+        listCheckpoints: () => ipcRenderer.invoke('checkpoint:list'),
+        rollbackToCheckpoint: (checkpointId: string) => ipcRenderer.invoke('checkpoint:rollback', checkpointId),
+        deleteCheckpoint: (checkpointId: string) => ipcRenderer.invoke('checkpoint:delete', checkpointId),
     },
     lore: {
         list: (projectPath: string) => ipcRenderer.invoke('lore:list', projectPath),
+    },
+    memory: {
+        read: (projectPath: string) => ipcRenderer.invoke('memory:read', projectPath),
+        write: (projectPath: string, content: string) => ipcRenderer.invoke('memory:write', { projectPath, content }),
+        append: (projectPath: string, entry: string) => ipcRenderer.invoke('memory:append', { projectPath, entry }),
+        clear: (projectPath: string) => ipcRenderer.invoke('memory:clear', projectPath),
     },
     preferences: {
         get: () => ipcRenderer.invoke('preferences:get'),
@@ -124,5 +168,9 @@ contextBridge.exposeInMainWorld('sumerian', {
             ipcRenderer.on(`state:${channel}`, handler);
             return () => ipcRenderer.removeListener(`state:${channel}`, handler);
         },
+    },
+    docs: {
+        read: (docPath: string) => ipcRenderer.invoke('docs:read', docPath),
+        list: () => ipcRenderer.invoke('docs:list'),
     }
 });

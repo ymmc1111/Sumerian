@@ -58,8 +58,7 @@ const createWindow = () => {
     );
   }
 
-  // Open DevTools in development to debug
-  mainWindow.webContents.openDevTools();
+  // DevTools can be opened manually with Cmd+Option+I
   
   // Register main window with window manager
   windowManager.setMainWindow(mainWindow);

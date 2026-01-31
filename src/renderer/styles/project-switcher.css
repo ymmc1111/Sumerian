@@ -1,0 +1,281 @@
+/* Quick Project Switcher Styles */
+
+/* Unsaved changes indicator */
+.unsaved-indicator {
+  font-size: 8px;
+  color: var(--nexus-accent);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* Dropdown container */
+.project-switcher-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 240px;
+  max-width: 320px;
+  max-height: 320px;
+  overflow-y: auto;
+  
+  padding: var(--spacing-sm, 8px);
+  border-radius: 8px;
+  border: 1px solid var(--nexus-border);
+  
+  backdrop-filter: blur(20px);
+  background: rgba(18, 18, 18, 0.95);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  
+  z-index: 1000;
+  
+  animation: dropdown-open 0.15s cubic-bezier(0.2, 1, 0.3, 1);
+  transform-origin: top left;
+}
+
+@keyframes dropdown-open {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* Smooth scrollbar */
+.project-switcher-dropdown::-webkit-scrollbar {
+  width: 6px;
+}
+
+.project-switcher-dropdown::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.project-switcher-dropdown::-webkit-scrollbar-thumb {
+  background: var(--nexus-border);
+  border-radius: 3px;
+}
+
+.project-switcher-dropdown::-webkit-scrollbar-thumb:hover {
+  background: var(--nexus-fg-muted);
+}
+
+/* Project item */
+.project-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm, 8px);
+  padding: var(--spacing-sm, 8px) var(--spacing-md, 16px);
+  border-radius: 6px;
+  cursor: pointer;
+  
+  font-family: var(--font-ui, 'Inter', -apple-system, sans-serif);
+  font-size: var(--font-size-md, 13px);
+  color: var(--nexus-fg-primary);
+  
+  min-height: var(--touch-target-min, 32px);
+  
+  transition: background 0.15s cubic-bezier(0.2, 1, 0.3, 1);
+}
+
+.project-item:hover,
+.project-item.highlighted {
+  background: var(--nexus-bg-tertiary);
+}
+
+.project-item[data-active="true"] {
+  color: var(--nexus-accent);
+  font-weight: 500;
+}
+
+.project-item:focus-visible {
+  outline: 2px solid var(--nexus-accent);
+  outline-offset: -2px;
+}
+
+/* Project divider */
+.project-divider {
+  height: 1px;
+  background: var(--nexus-border);
+  margin: var(--spacing-xs, 4px) 0;
+}
+
+/* Tooltip */
+.project-tooltip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  
+  padding: 6px 12px;
+  border-radius: 6px;
+  
+  background: rgba(10, 10, 10, 0.95);
+  border: 1px solid var(--nexus-border);
+  
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-size: 11px;
+  color: var(--nexus-fg-muted);
+  white-space: nowrap;
+  
+  pointer-events: none;
+  z-index: 1000;
+  
+  animation: tooltip-fade-in 0.15s ease;
+}
+
+@keyframes tooltip-fade-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+/* ===== THEME VARIATIONS ===== */
+
+/* NEXUS (Default) - Already defined above */
+[data-theme="nexus"] .project-switcher-dropdown {
+  backdrop-filter: blur(20px);
+  background: rgba(18, 18, 18, 0.95);
+  border: 1px solid #2a2a2a;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+[data-theme="nexus"] .project-item:hover,
+[data-theme="nexus"] .project-item.highlighted {
+  background: #1a1a1a;
+}
+
+/* GRID (Tron 80s) */
+[data-theme="grid"] .project-switcher-dropdown {
+  background: rgba(0, 5, 5, 0.95);
+  border: 1px solid #00E5FF;
+  box-shadow: 
+    0 0 10px rgba(0, 229, 255, 0.3),
+    inset 0 0 5px rgba(0, 229, 255, 0.2);
+  position: relative;
+}
+
+[data-theme="grid"] .project-item {
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-size: 12px;
+}
+
+[data-theme="grid"] .project-item:hover,
+[data-theme="grid"] .project-item.highlighted {
+  background: rgba(0, 229, 255, 0.1);
+  box-shadow: inset 0 0 8px rgba(0, 229, 255, 0.2);
+}
+
+[data-theme="grid"] .project-item[data-active="true"] {
+  color: #00E5FF;
+  text-shadow: 0 0 8px rgba(0, 229, 255, 0.6);
+}
+
+[data-theme="grid"] .project-item:focus-visible {
+  outline-color: #FF3C00;
+}
+
+/* Scanline effect for GRID theme */
+[data-theme="grid"] .project-switcher-dropdown::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(rgba(0, 0, 0, 0) 50%, rgba(0, 0, 0, 0.25) 50%);
+  background-size: 100% 2px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+[data-theme="grid"] .unsaved-indicator {
+  color: #CCFF00;
+}
+
+/* LOVE (Ive Minimalist) - Light Mode */
+[data-theme="love"] .project-switcher-dropdown {
+  backdrop-filter: blur(20px) saturate(180%);
+  background: rgba(245, 245, 247, 0.9);
+  border: 0.5px solid #D2D2D7;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+[data-theme="love"] .project-item {
+  font-family: 'SF Pro', 'Inter', -apple-system, sans-serif;
+  letter-spacing: -0.01em;
+  border-radius: 6px;
+  color: #1D1D1F;
+}
+
+[data-theme="love"] .project-item:hover,
+[data-theme="love"] .project-item.highlighted {
+  background: rgba(0, 122, 255, 0.08);
+}
+
+[data-theme="love"] .project-item:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.3);
+}
+
+[data-theme="love"] .project-item[data-active="true"] {
+  color: #007AFF;
+}
+
+[data-theme="love"] .project-tooltip {
+  background: rgba(245, 245, 247, 0.95);
+  border: 0.5px solid #D2D2D7;
+  color: #86868B;
+}
+
+/* LOVE Dark Mode */
+[data-theme="love"][data-color-scheme="dark"] .project-switcher-dropdown {
+  background: rgba(29, 29, 31, 0.9);
+  border: 0.5px solid #3A3A3C;
+}
+
+[data-theme="love"][data-color-scheme="dark"] .project-item {
+  color: #F5F5F7;
+}
+
+[data-theme="love"][data-color-scheme="dark"] .project-item[data-active="true"] {
+  color: #0A84FF;
+}
+
+[data-theme="love"][data-color-scheme="dark"] .project-tooltip {
+  background: rgba(29, 29, 31, 0.95);
+  border: 0.5px solid #3A3A3C;
+  color: #86868B;
+}
+
+/* ===== REDUCED MOTION ===== */
+@media (prefers-reduced-motion: reduce) {
+  .project-switcher-dropdown {
+    animation: none;
+    transition: opacity 0.1s ease;
+  }
+  
+  .project-item {
+    transition: background 0.05s ease;
+  }
+  
+  .unsaved-indicator {
+    animation: none;
+    opacity: 1;
+  }
+  
+  .project-tooltip {
+    animation: none;
+  }
+}

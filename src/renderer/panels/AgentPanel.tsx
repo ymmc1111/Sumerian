@@ -6,20 +6,22 @@ import ToolActionFeed from '../components/ToolActionFeed';
 import ConnectionStatus from '../components/ConnectionStatus';
 import BraveModeToggle from '../components/BraveModeToggle';
 import SelfHealingIndicator from '../components/SelfHealingIndicator';
+import LoopIndicator from '../components/LoopIndicator';
+import DelegationCard from '../components/DelegationCard';
 import { useAppStore } from '../stores/useAppStore';
 import { PanelSlotId } from '../types/layout';
 import SessionList from '../components/SessionList';
 import TokenUsageDisplay from '../components/TokenUsageDisplay';
 import PanelHeader from '../components/PanelHeader';
 import ModelSelector from '../components/ModelSelector';
-import { Trash2, RotateCcw, Book, Bot, History, Plus } from 'lucide-react';
+import { Trash2, RotateCcw, Book, Bot, History, Plus, Zap } from 'lucide-react';
 
 interface AgentPanelProps {
     slotId?: PanelSlotId;
 }
 
 const AgentPanel: React.FC<AgentPanelProps> = ({ slotId = 'C' }) => {
-    const { agent, clearHistory, refreshFileTree, interruptHealingLoop, clearTerminalError } = useAppStore();
+    const { agent, workforce, clearHistory, refreshFileTree, interruptHealingLoop, clearTerminalError, cancelLoop, approveDelegation, rejectDelegation, setAutopilotMode } = useAppStore();
     const [showSessions, setShowSessions] = React.useState(false);
     const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -70,6 +72,27 @@ const AgentPanel: React.FC<AgentPanelProps> = ({ slotId = 'C' }) => {
                                 </div>
                             </div>
                         )}
+                        <label className="flex items-center gap-2 cursor-pointer group">
+                            <input
+                                type="checkbox"
+                                checked={agent.autopilotMode}
+                                onChange={(e) => setAutopilotMode(e.target.checked)}
+                                className="sr-only"
+                            />
+                            <div className={`relative w-10 h-5 rounded-full transition-colors ${
+                                agent.autopilotMode ? 'bg-blue-500' : 'bg-gray-600'
+                            }`}>
+                                <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform ${
+                                    agent.autopilotMode ? 'translate-x-5' : 'translate-x-0.5'
+                                }`} />
+                            </div>
+                            <span className="text-xs text-nexus-fg-secondary group-hover:text-nexus-fg-primary transition-colors">
+                                Autopilot
+                            </span>
+                            {agent.autopilotMode && (
+                                <Zap className="w-4 h-4 text-blue-500 animate-pulse" />
+                            )}
+                        </label>
                         <button
                             onClick={clearHistory}
                             className="icon-btn"
@@ -128,9 +151,27 @@ const AgentPanel: React.FC<AgentPanelProps> = ({ slotId = 'C' }) => {
                     </div>
                 ) : (
                     <>
+                        {workforce.pendingProposal && (
+                            <DelegationCard
+                                proposal={workforce.pendingProposal}
+                                onApprove={approveDelegation}
+                                onReject={rejectDelegation}
+                            />
+                        )}
+
                         {agent.messages.map((msg: any) => (
                             <ChatMessage key={msg.id} message={msg} />
                         ))}
+
+                        {agent.loopActive && agent.loopConfig && (
+                            <LoopIndicator
+                                iteration={agent.loopIteration}
+                                maxIterations={agent.loopConfig.maxIterations}
+                                prompt={agent.loopConfig.prompt}
+                                completionPromise={agent.loopConfig.completionPromise}
+                                onCancel={cancelLoop}
+                            />
+                        )}
 
                         {agent.healingLoopActive && (
                             <SelfHealingIndicator

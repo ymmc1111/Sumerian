@@ -111,8 +111,17 @@ const TerminalInstance: React.FC<TerminalInstanceProps> = ({ id, isActive }) => 
         // Initialize terminal via IPC
         window.sumerian.terminal.create(id, project.rootPath || './');
 
+        let initialDataReceived = false;
         const cleanupData = window.sumerian.terminal.onData(id, (data: string) => {
             term.write(data);
+            
+            // Scroll to top after initial shell output is received
+            if (!initialDataReceived) {
+                initialDataReceived = true;
+                setTimeout(() => {
+                    term.scrollToTop();
+                }, 150);
+            }
         });
 
         term.onData((data) => {
@@ -226,7 +235,48 @@ interface TerminalPanelProps {
 }
 
 const TerminalPanel: React.FC<TerminalPanelProps> = ({ slotId = 'D' }) => {
-    const { ui } = useAppStore();
+    const { ui, workforce, terminateAgent } = useAppStore();
+    const [layout, setLayout] = useState<'tabs' | 'grid'>('tabs');
+    const [focusedTerminal, setFocusedTerminal] = useState<string>(ui.activeTerminalId || 'default');
+    const [isHalting, setIsHalting] = useState(false);
+
+    const activeAgents = Array.from(workforce.activeAgents.values());
+    
+    // Combine main terminals with agent terminals
+    const allTerminals = [
+        ...ui.terminals,
+        ...activeAgents.map(agent => ({
+            id: `agent-${agent.id}`,
+            name: `Agent: ${agent.id.slice(0, 8)}`
+        }))
+    ];
+
+    const handleTerminalClick = (termId: string) => {
+        setFocusedTerminal(termId);
+        if (!termId.startsWith('agent-')) {
+            // Only set active terminal for non-agent terminals
+            const { setActiveTerminal } = useAppStore.getState();
+            setActiveTerminal(termId);
+        }
+    };
+
+    const handleHaltAll = async () => {
+        if (activeAgents.length === 0) return;
+        
+        if (confirm(`Kill all ${activeAgents.length} active agent(s)? This cannot be undone.`)) {
+            setIsHalting(true);
+            try {
+                // Kill all agents in parallel
+                await Promise.all(
+                    activeAgents.map(agent => terminateAgent(agent.id))
+                );
+            } catch (error) {
+                console.error('Failed to halt all agents:', error);
+            } finally {
+                setIsHalting(false);
+            }
+        }
+    };
 
     return (
         <div className="w-full h-full bg-nexus-bg-primary flex flex-col border-t border-nexus-border">
@@ -235,17 +285,100 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ slotId = 'D' }) => {
                 panelType="terminal"
                 slotId={slotId}
                 icon={<Terminal className="w-4 h-4" />}
+                actions={
+                    <div className="flex items-center gap-2">
+                        {activeAgents.length > 0 && (
+                            <button
+                                onClick={handleHaltAll}
+                                disabled={isHalting}
+                                className="px-2 py-1 rounded bg-red-500 text-white text-[10px] font-bold hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                title="Kill all active agents"
+                            >
+                                {isHalting ? 'HALTING...' : 'HALT ALL'}
+                            </button>
+                        )}
+                        {allTerminals.length > 1 && (
+                            <button
+                                onClick={() => setLayout(layout === 'tabs' ? 'grid' : 'tabs')}
+                                className="icon-btn"
+                                title={layout === 'tabs' ? 'Grid View' : 'Tab View'}
+                            >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    {layout === 'tabs' ? (
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM14 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zM14 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
+                                    ) : (
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                                    )}
+                                </svg>
+                            </button>
+                        )}
+                    </div>
+                }
             />
-            <TerminalTabs />
-            <div className="flex-1 overflow-hidden p-2">
-                {ui.terminals.map((term) => (
-                    <TerminalInstance
-                        key={term.id}
-                        id={term.id}
-                        isActive={ui.activeTerminalId === term.id}
-                    />
-                ))}
-            </div>
+
+            {/* Terminal Tabs */}
+            {layout === 'tabs' && (
+                <div className="flex items-center border-b border-nexus-border bg-nexus-bg-secondary overflow-x-auto">
+                    {allTerminals.map((term) => {
+                        const isAgent = term.id.startsWith('agent-');
+                        const isActive = focusedTerminal === term.id;
+                        
+                        return (
+                            <button
+                                key={term.id}
+                                onClick={() => handleTerminalClick(term.id)}
+                                className={`px-3 py-2 text-xs font-medium whitespace-nowrap border-r border-nexus-border transition-colors ${
+                                    isActive
+                                        ? 'bg-nexus-bg-primary text-nexus-accent border-b-2 border-b-nexus-accent'
+                                        : 'text-nexus-fg-muted hover:text-nexus-fg-secondary hover:bg-nexus-bg-tertiary'
+                                }`}
+                            >
+                                {isAgent && '🤖 '}
+                                {term.name}
+                            </button>
+                        );
+                    })}
+                </div>
+            )}
+
+            {/* Terminal Content */}
+            {layout === 'tabs' ? (
+                <div className="flex-1 overflow-hidden p-2">
+                    {ui.terminals.map((term) => (
+                        <TerminalInstance
+                            key={term.id}
+                            id={term.id}
+                            isActive={focusedTerminal === term.id}
+                        />
+                    ))}
+                    {activeAgents.map((agent) => (
+                        <TerminalInstance
+                            key={`agent-${agent.id}`}
+                            id={`agent-${agent.id}`}
+                            isActive={focusedTerminal === `agent-${agent.id}`}
+                        />
+                    ))}
+                </div>
+            ) : (
+                <div className="flex-1 grid grid-cols-2 gap-2 p-2 overflow-hidden">
+                    {allTerminals.slice(0, 4).map((term) => (
+                        <div
+                            key={term.id}
+                            className="border border-nexus-border rounded overflow-hidden bg-nexus-bg-secondary"
+                        >
+                            <div className="px-2 py-1 bg-nexus-bg-tertiary border-b border-nexus-border text-[10px] text-nexus-fg-muted">
+                                {term.name}
+                            </div>
+                            <div className="h-[calc(100%-24px)]">
+                                <TerminalInstance
+                                    id={term.id}
+                                    isActive={true}
+                                />
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
         </div>
     );
 };

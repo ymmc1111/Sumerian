@@ -47,10 +47,7 @@ export class WindowManager {
       },
     });
 
-    // Open DevTools in development
-    if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
-      window.webContents.openDevTools();
-    }
+    // DevTools can be opened manually with Cmd+Option+I
 
     // Load the same app but with a query param to indicate detached panel
     const url = MAIN_WINDOW_VITE_DEV_SERVER_URL

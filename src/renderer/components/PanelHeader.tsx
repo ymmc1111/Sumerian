@@ -53,8 +53,8 @@ export const PanelHeader: React.FC<PanelHeaderProps> = ({
   return (
     <div
       className={`
-        h-8 min-h-[32px] flex items-center justify-between
-        px-3 select-none
+        h-12 min-h-[48px] flex items-center justify-between
+        px-3 select-none overflow-visible
         bg-[#1a1a1a] border-b border-[#2a2a2a]
         ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}
       `}

@@ -11,7 +11,7 @@ interface CommandItem {
 }
 
 const CommandPalette: React.FC = () => {
-    const { ui, toggleCommandPalette, toggleSettings, selectProject, toggleShortcutsHelp, agent, setBraveMode, clearHistory } = useAppStore();
+    const { ui, toggleCommandPalette, toggleSettings, selectProject, toggleShortcutsHelp, agent, setBraveMode, clearHistory, toggleDocsViewer, openDocsWithTopic } = useAppStore();
     const { isCommandPaletteOpen } = ui;
     const [query, setQuery] = useState('');
     const [selectedIndex, setSelectedIndex] = useState(0);
@@ -23,6 +23,11 @@ const CommandPalette: React.FC = () => {
         { id: 'shortcuts', label: 'Show Keyboard Shortcuts', description: 'View all keyboard shortcuts', shortcut: '⌘/', action: toggleShortcutsHelp },
         { id: 'brave-mode', label: 'Toggle Brave Mode', description: 'Enable/disable autonomous agent actions', shortcut: '⌘⇧B', action: () => setBraveMode(!agent.braveMode) },
         { id: 'clear-history', label: 'Clear Chat History', description: 'Wipe all agent messages from the session', action: clearHistory },
+        { id: 'help-docs', label: 'Help: View Documentation', description: 'Open the documentation viewer', action: toggleDocsViewer },
+        { id: 'help-multi-project', label: 'Help: Multi-Project Workspaces', description: 'Learn about managing multiple projects', action: () => openDocsWithTopic('multi-project') },
+        { id: 'help-mcp-setup', label: 'Help: MCP Setup Guide', description: 'Configure Model Context Protocol servers', action: () => openDocsWithTopic('mcp-setup') },
+        { id: 'help-mcp-usage', label: 'Help: MCP Usage Guide', description: 'Use MCP tools in your projects', action: () => openDocsWithTopic('mcp-usage') },
+        { id: 'help-commands', label: 'Help: Commands Reference', description: 'View all available commands and shortcuts', action: () => openDocsWithTopic('commands') },
     ];
 
     const filteredCommands = commands.filter(c =>

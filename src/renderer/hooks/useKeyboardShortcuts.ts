@@ -20,10 +20,10 @@ export const useKeyboardShortcuts = () => {
                 setBraveMode(!agent.braveMode);
             }
 
-            // Cmd + O to open project
+            // Cmd + O to open project switcher
             if (e.metaKey && e.key.toLowerCase() === 'o') {
                 e.preventDefault();
-                useAppStore.getState().selectProject();
+                useAppStore.getState().toggleProjectSwitcher();
             }
 
             // Cmd + , to open settings
@@ -62,6 +62,8 @@ export const useKeyboardShortcuts = () => {
                     state.toggleCommandPalette();
                 } else if (state.ui.isShortcutsHelpOpen) {
                     state.toggleShortcutsHelp();
+                } else if (state.ui.isProjectSwitcherOpen) {
+                    state.toggleProjectSwitcher();
                 }
             }
 

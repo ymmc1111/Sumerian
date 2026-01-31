@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { ChevronRight, ChevronDown, Pin } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ChevronRight, ChevronDown, Pin, Lock } from 'lucide-react';
 import { FileNode } from '../stores/types';
 import { useAppStore } from '../stores/useAppStore';
 import FileIcon from './FileIcon';
@@ -11,9 +11,27 @@ interface FileTreeItemProps {
 
 const FileTreeItem: React.FC<FileTreeItemProps> = ({ node, level }) => {
     const [isOpen, setIsOpen] = useState(false);
-    const { openFile, editor, agent, toggleFilePin } = useAppStore();
+    const [lockedBy, setLockedBy] = useState<string | null>(null);
+    const { openFile, editor, agent, toggleFilePin, workforce } = useAppStore();
     const { activeFileId } = editor;
     const isPinned = agent.pinnedFiles?.includes(node.path) ?? false;
+
+    useEffect(() => {
+        if (node.isDirectory) return;
+        
+        let foundLock = false;
+        for (const agentInstance of workforce.activeAgents.values()) {
+            if (agentInstance.lockedFiles.includes(node.path)) {
+                setLockedBy(agentInstance.id);
+                foundLock = true;
+                break;
+            }
+        }
+        
+        if (!foundLock && lockedBy) {
+            setLockedBy(null);
+        }
+    }, [workforce.activeAgents, node.path, node.isDirectory, lockedBy]);
 
     const handleClick = (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -48,6 +66,15 @@ const FileTreeItem: React.FC<FileTreeItemProps> = ({ node, level }) => {
                 <span className={`truncate flex-1 ${isActive ? 'text-nexus-fg-primary font-medium' : 'text-nexus-fg-secondary group-hover:text-nexus-fg-primary'}`}>
                     {node.name}
                 </span>
+
+                {lockedBy && (
+                    <div 
+                        className="mr-1 flex items-center"
+                        title={`Locked by agent ${lockedBy.slice(0, 8)}`}
+                    >
+                        <Lock className="w-3 h-3 text-amber-500" />
+                    </div>
+                )}
 
                 {!node.isDirectory && (
                     <button

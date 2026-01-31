@@ -1,14 +1,18 @@
 import React from 'react';
-import { X, Settings, Monitor, Type, Shield, Info, Sparkles } from 'lucide-react';
+import { X, Settings, Monitor, Type, Shield, Info, Sparkles, Server, Folder } from 'lucide-react';
 import { useAppStore } from '../stores/useAppStore';
 import { useTheme } from '../themes';
+import MCPSettings from './MCPSettings';
 
 const SettingsModal: React.FC = () => {
-    const { ui, updateSettings, toggleSettings, forceRefreshModels } = useAppStore();
+    const { ui, updateSettings, toggleSettings, forceRefreshModels, project, toggleDocsViewer } = useAppStore();
     const { settings } = ui;
     const { themeId, setTheme, availableThemes, reducedMotion, setReducedMotion } = useTheme();
-    const [activeTab, setActiveTab] = React.useState<'appearance' | 'editor' | 'agent' | 'security' | 'about'>('appearance');
+    const [activeTab, setActiveTab] = React.useState<'appearance' | 'editor' | 'agent' | 'mcp' | 'project' | 'security' | 'about'>('appearance');
     const [isRefreshing, setIsRefreshing] = React.useState(false);
+    const [projectConfig, setProjectConfig] = React.useState<any>(null);
+    const [configLoading, setConfigLoading] = React.useState(false);
+    const [configSaving, setConfigSaving] = React.useState(false);
 
     const handleRefreshModels = async () => {
         setIsRefreshing(true);
@@ -19,6 +23,42 @@ const SettingsModal: React.FC = () => {
             // Give it a tiny bit of visual feedback even if fast
             setTimeout(() => setIsRefreshing(false), 800);
         }
+    };
+
+    React.useEffect(() => {
+        if (activeTab === 'project' && project.rootPath) {
+            loadProjectConfig();
+        }
+    }, [activeTab, project.rootPath]);
+
+    const loadProjectConfig = async () => {
+        if (!project.rootPath) return;
+        setConfigLoading(true);
+        try {
+            const config = await window.sumerian.project.loadConfig(project.rootPath);
+            setProjectConfig(config || { version: 1 });
+        } catch (error) {
+            console.error('Failed to load project config:', error);
+            setProjectConfig({ version: 1 });
+        } finally {
+            setConfigLoading(false);
+        }
+    };
+
+    const saveProjectConfig = async () => {
+        if (!project.rootPath || !projectConfig) return;
+        setConfigSaving(true);
+        try {
+            await window.sumerian.project.saveConfig(project.rootPath, projectConfig);
+        } catch (error) {
+            console.error('Failed to save project config:', error);
+        } finally {
+            setConfigSaving(false);
+        }
+    };
+
+    const updateProjectConfig = (updates: any) => {
+        setProjectConfig((prev: any) => ({ ...prev, ...updates }));
     };
 
     if (!settings.isSettingsOpen) return null;
@@ -34,6 +74,8 @@ const SettingsModal: React.FC = () => {
         { id: 'appearance', label: 'Appearance', icon: Monitor },
         { id: 'editor', label: 'Editor', icon: Type },
         { id: 'agent', label: 'Agent', icon: Sparkles },
+        { id: 'mcp', label: 'MCP Tools', icon: Server },
+        { id: 'project', label: 'Project', icon: Folder },
         { id: 'security', label: 'Security', icon: Shield },
         { id: 'about', label: 'About', icon: Info },
     ] as const;
@@ -41,11 +83,12 @@ const SettingsModal: React.FC = () => {
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
             <div
-                className="w-full max-w-2xl h-[480px] bg-nexus-bg-secondary border border-nexus-border rounded-3xl shadow-2xl flex overflow-hidden animate-in zoom-in-95 duration-200"
+                className="w-full max-w-2xl h-[480px] bg-nexus-bg-primary border border-nexus-border rounded-3xl shadow-2xl flex overflow-hidden animate-in zoom-in-95 duration-200"
                 onClick={(e) => e.stopPropagation()}
+                style={{ backgroundColor: 'var(--color-bg-primary)' }}
             >
                 {/* Sidebar */}
-                <div className="w-48 bg-nexus-bg-tertiary border-r border-nexus-border flex flex-col p-4 space-y-1">
+                <div className="w-48 bg-nexus-bg-tertiary border-r border-nexus-border flex flex-col p-4 space-y-1" style={{ backgroundColor: 'var(--color-bg-tertiary)' }}>
                     <div className="flex items-center space-x-2 px-2 mb-6">
                         <Settings className="w-4 h-4 text-nexus-accent" />
                         <span className="text-xs font-bold uppercase tracking-widest text-nexus-fg-primary">Settings</span>
@@ -176,6 +219,154 @@ const SettingsModal: React.FC = () => {
                             </div>
                         )}
 
+                        {activeTab === 'mcp' && (
+                            <MCPSettings />
+                        )}
+
+                        {activeTab === 'project' && (
+                            <div className="space-y-6">
+                                {!project.rootPath ? (
+                                    <div className="p-4 rounded-2xl bg-nexus-bg-tertiary border border-nexus-border text-center">
+                                        <p className="text-xs text-nexus-fg-muted">No project open. Open a project to configure per-project settings.</p>
+                                    </div>
+                                ) : configLoading ? (
+                                    <div className="p-4 rounded-2xl bg-nexus-bg-tertiary border border-nexus-border text-center">
+                                        <p className="text-xs text-nexus-fg-muted">Loading project configuration...</p>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <div className="p-4 rounded-2xl bg-nexus-bg-tertiary border border-nexus-border space-y-3">
+                                            <div className="space-y-1">
+                                                <h3 className="text-xs font-bold text-nexus-fg-primary">Project Path</h3>
+                                                <p className="text-[10px] text-nexus-fg-muted font-mono break-all">{project.rootPath}</p>
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-4">
+                                            <label className="text-[10px] font-bold uppercase tracking-widest text-nexus-fg-muted">Project Settings</label>
+                                            <p className="text-[10px] text-nexus-fg-muted">Override global settings for this project. Leave empty to use global defaults.</p>
+
+                                            <div className="space-y-3">
+                                                <div className="space-y-2">
+                                                    <label className="text-xs text-nexus-fg-primary">Project Name</label>
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Auto-detected from folder name"
+                                                        value={projectConfig?.name || ''}
+                                                        onChange={(e) => updateProjectConfig({ name: e.target.value || undefined })}
+                                                        className="w-full px-3 py-2 rounded-xl bg-nexus-bg-primary border border-nexus-border text-xs text-nexus-fg-primary focus:outline-none focus:border-nexus-accent"
+                                                    />
+                                                    <p className="text-[10px] text-nexus-fg-muted">Custom display name for this project</p>
+                                                </div>
+
+                                                <div className="p-4 rounded-2xl bg-nexus-bg-tertiary border border-nexus-border flex items-center justify-between">
+                                                    <div className="space-y-1">
+                                                        <h3 className="text-xs font-bold text-nexus-fg-primary">Brave Mode</h3>
+                                                        <p className="text-[10px] text-nexus-fg-muted">Override global brave mode setting</p>
+                                                    </div>
+                                                    <select
+                                                        value={projectConfig?.braveMode === undefined ? 'default' : projectConfig.braveMode ? 'true' : 'false'}
+                                                        onChange={(e) => {
+                                                            const value = e.target.value === 'default' ? undefined : e.target.value === 'true';
+                                                            updateProjectConfig({ braveMode: value });
+                                                        }}
+                                                        className="px-3 py-1.5 rounded-xl bg-nexus-bg-primary border border-nexus-border text-xs text-nexus-fg-primary focus:outline-none focus:border-nexus-accent"
+                                                    >
+                                                        <option value="default">Use Global</option>
+                                                        <option value="true">Enabled</option>
+                                                        <option value="false">Disabled</option>
+                                                    </select>
+                                                </div>
+
+                                                <div className="space-y-2">
+                                                    <label className="text-xs text-nexus-fg-primary">Default Model</label>
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Use global model setting"
+                                                        value={projectConfig?.model || ''}
+                                                        onChange={(e) => updateProjectConfig({ model: e.target.value || undefined })}
+                                                        className="w-full px-3 py-2 rounded-xl bg-nexus-bg-primary border border-nexus-border text-xs text-nexus-fg-primary focus:outline-none focus:border-nexus-accent font-mono"
+                                                    />
+                                                    <p className="text-[10px] text-nexus-fg-muted">Override default Claude model for this project</p>
+                                                </div>
+
+                                                <div className="space-y-2">
+                                                    <label className="text-xs text-nexus-fg-primary">MCP Config Path</label>
+                                                    <input
+                                                        type="text"
+                                                        placeholder="/path/to/mcp-config.json"
+                                                        value={projectConfig?.mcpConfigPath || ''}
+                                                        onChange={(e) => updateProjectConfig({ mcpConfigPath: e.target.value || undefined })}
+                                                        className="w-full px-3 py-2 rounded-xl bg-nexus-bg-primary border border-nexus-border text-xs text-nexus-fg-primary focus:outline-none focus:border-nexus-accent font-mono"
+                                                    />
+                                                    <p className="text-[10px] text-nexus-fg-muted">Project-specific MCP configuration file</p>
+                                                </div>
+
+                                                <div className="space-y-2">
+                                                    <label className="text-xs text-nexus-fg-primary">Additional Directories</label>
+                                                    <input
+                                                        type="text"
+                                                        placeholder="/path/to/dir1,/path/to/dir2"
+                                                        value={projectConfig?.additionalDirs?.join(',') || ''}
+                                                        onChange={(e) => {
+                                                            const value = e.target.value.split(',').map(s => s.trim()).filter(Boolean);
+                                                            updateProjectConfig({ additionalDirs: value.length > 0 ? value : undefined });
+                                                        }}
+                                                        className="w-full px-3 py-2 rounded-xl bg-nexus-bg-primary border border-nexus-border text-xs text-nexus-fg-primary focus:outline-none focus:border-nexus-accent font-mono"
+                                                    />
+                                                    <p className="text-[10px] text-nexus-fg-muted">Comma-separated paths for monorepo support</p>
+                                                </div>
+
+                                                <div className="space-y-2">
+                                                    <label className="text-xs text-nexus-fg-primary">Allowed Tools</label>
+                                                    <input
+                                                        type="text"
+                                                        placeholder="tool1,tool2,tool3"
+                                                        value={projectConfig?.allowedTools?.join(',') || ''}
+                                                        onChange={(e) => {
+                                                            const value = e.target.value.split(',').map(s => s.trim()).filter(Boolean);
+                                                            updateProjectConfig({ allowedTools: value.length > 0 ? value : undefined });
+                                                        }}
+                                                        className="w-full px-3 py-2 rounded-xl bg-nexus-bg-primary border border-nexus-border text-xs text-nexus-fg-primary focus:outline-none focus:border-nexus-accent font-mono"
+                                                    />
+                                                    <p className="text-[10px] text-nexus-fg-muted">Whitelist of allowed MCP tools (comma-separated)</p>
+                                                </div>
+
+                                                <div className="space-y-2">
+                                                    <label className="text-xs text-nexus-fg-primary">Disallowed Tools</label>
+                                                    <input
+                                                        type="text"
+                                                        placeholder="tool1,tool2,tool3"
+                                                        value={projectConfig?.disallowedTools?.join(',') || ''}
+                                                        onChange={(e) => {
+                                                            const value = e.target.value.split(',').map(s => s.trim()).filter(Boolean);
+                                                            updateProjectConfig({ disallowedTools: value.length > 0 ? value : undefined });
+                                                        }}
+                                                        className="w-full px-3 py-2 rounded-xl bg-nexus-bg-primary border border-nexus-border text-xs text-nexus-fg-primary focus:outline-none focus:border-nexus-accent font-mono"
+                                                    />
+                                                    <p className="text-[10px] text-nexus-fg-muted">Blacklist of disallowed MCP tools (comma-separated)</p>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="pt-4 border-t border-nexus-border flex justify-end">
+                                            <button
+                                                onClick={saveProjectConfig}
+                                                disabled={configSaving}
+                                                className={`px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all border ${
+                                                    configSaving
+                                                        ? 'bg-nexus-bg-primary text-nexus-fg-muted border-nexus-border cursor-wait'
+                                                        : 'bg-nexus-accent text-white border-nexus-accent hover:shadow-[0_0_15px_rgba(59,130,246,0.5)]'
+                                                }`}
+                                            >
+                                                {configSaving ? 'Saving...' : 'Save Config'}
+                                            </button>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        )}
+
                         {activeTab === 'security' && (
                             <div className="space-y-6">
                                 <div className="p-4 rounded-2xl bg-nexus-bg-tertiary border border-nexus-border flex items-center justify-between">
@@ -216,6 +407,66 @@ const SettingsModal: React.FC = () => {
                                         </div>
                                     </div>
                                 </div>
+
+                                <div className="space-y-4 pt-4 border-t border-nexus-border">
+                                    <label className="text-[10px] font-bold uppercase tracking-widest text-nexus-fg-muted">Advanced CLI Flags</label>
+                                    
+                                    <div className="space-y-3">
+                                        <div className="space-y-2">
+                                            <label className="text-xs text-nexus-fg-primary">Max Budget (USD)</label>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                step="0.01"
+                                                placeholder="No limit"
+                                                value={settings.maxBudgetUsd || ''}
+                                                onChange={(e) => {
+                                                    const value = e.target.value ? parseFloat(e.target.value) : undefined;
+                                                    updateSettings({ maxBudgetUsd: value });
+                                                    if (value !== undefined) {
+                                                        window.sumerian.cli.setMaxBudgetUsd(value);
+                                                    } else {
+                                                        window.sumerian.cli.setMaxBudgetUsd(null);
+                                                    }
+                                                }}
+                                                className="w-full px-3 py-2 rounded-xl bg-nexus-bg-primary border border-nexus-border text-xs text-nexus-fg-primary focus:outline-none focus:border-nexus-accent"
+                                            />
+                                            <p className="text-[10px] text-nexus-fg-muted">Set a cost limit for agent operations</p>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <label className="text-xs text-nexus-fg-primary">MCP Config Path</label>
+                                            <input
+                                                type="text"
+                                                placeholder="/path/to/mcp-config.json"
+                                                value={settings.mcpConfigPath || ''}
+                                                onChange={(e) => {
+                                                    const value = e.target.value || undefined;
+                                                    updateSettings({ mcpConfigPath: value });
+                                                    window.sumerian.cli.setMcpConfigPath(value || null);
+                                                }}
+                                                className="w-full px-3 py-2 rounded-xl bg-nexus-bg-primary border border-nexus-border text-xs text-nexus-fg-primary focus:outline-none focus:border-nexus-accent font-mono"
+                                            />
+                                            <p className="text-[10px] text-nexus-fg-muted">Path to MCP configuration file</p>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <label className="text-xs text-nexus-fg-primary">Additional Directories</label>
+                                            <input
+                                                type="text"
+                                                placeholder="/path/to/dir1,/path/to/dir2"
+                                                value={settings.additionalDirs?.join(',') || ''}
+                                                onChange={(e) => {
+                                                    const value = e.target.value.split(',').map(s => s.trim()).filter(Boolean);
+                                                    updateSettings({ additionalDirs: value.length > 0 ? value : undefined });
+                                                    window.sumerian.cli.setAdditionalDirs(value);
+                                                }}
+                                                className="w-full px-3 py-2 rounded-xl bg-nexus-bg-primary border border-nexus-border text-xs text-nexus-fg-primary focus:outline-none focus:border-nexus-accent font-mono"
+                                            />
+                                            <p className="text-[10px] text-nexus-fg-muted">Comma-separated paths for monorepo support</p>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         )}
 
@@ -229,8 +480,18 @@ const SettingsModal: React.FC = () => {
                                     <p className="text-xs text-nexus-fg-muted">Version 1.0.0 Experimental</p>
                                 </div>
                                 <div className="pt-4 flex space-x-4">
-                                    <button className="text-[10px] text-nexus-accent hover:underline uppercase tracking-widest font-bold">Docs</button>
-                                    <button className="text-[10px] text-nexus-accent hover:underline uppercase tracking-widest font-bold">GitHub</button>
+                                    <button 
+                                        onClick={toggleDocsViewer}
+                                        className="text-[10px] text-nexus-accent hover:underline uppercase tracking-widest font-bold"
+                                    >
+                                        Docs
+                                    </button>
+                                    <button 
+                                        onClick={() => window.open('https://github.com/ymmc1111/Sumerian', '_blank')}
+                                        className="text-[10px] text-nexus-accent hover:underline uppercase tracking-widest font-bold"
+                                    >
+                                        GitHub
+                                    </button>
                                 </div>
                             </div>
                         )}

@@ -1,0 +1,151 @@
+{
+  "templates": [
+    {
+      "id": "google-search",
+      "name": "google-search",
+      "displayName": "Google Search",
+      "description": "Search Google and get real-time web results",
+      "config": {
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-google-search"],
+        "env": {
+          "GOOGLE_API_KEY": "<YOUR_API_KEY>",
+          "GOOGLE_CSE_ID": "<YOUR_CSE_ID>"
+        }
+      },
+      "setup": "1. Go to https://console.cloud.google.com/apis/credentials\n2. Create API key\n3. Enable Custom Search API\n4. Create Custom Search Engine at https://cse.google.com",
+      "requiredEnv": ["GOOGLE_API_KEY", "GOOGLE_CSE_ID"],
+      "category": "search"
+    },
+    {
+      "id": "sequential-thinking",
+      "name": "sequential-thinking",
+      "displayName": "Sequential Thinking",
+      "description": "Enhanced step-by-step reasoning for complex problems",
+      "config": {
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"]
+      },
+      "setup": "No setup required - works out of the box",
+      "requiredEnv": [],
+      "category": "reasoning"
+    },
+    {
+      "id": "filesystem",
+      "name": "filesystem",
+      "displayName": "Filesystem Access",
+      "description": "Read and write files outside the project directory",
+      "config": {
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-filesystem", "/path/to/allowed/directory"]
+      },
+      "setup": "Replace /path/to/allowed/directory with the actual path you want to grant access to",
+      "requiredEnv": [],
+      "category": "filesystem"
+    },
+    {
+      "id": "brave-search",
+      "name": "brave-search",
+      "displayName": "Brave Search",
+      "description": "Search the web using Brave Search API",
+      "config": {
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-brave-search"],
+        "env": {
+          "BRAVE_API_KEY": "<YOUR_API_KEY>"
+        }
+      },
+      "setup": "Get API key from https://brave.com/search/api/",
+      "requiredEnv": ["BRAVE_API_KEY"],
+      "category": "search"
+    },
+    {
+      "id": "github",
+      "name": "github",
+      "displayName": "GitHub",
+      "description": "Interact with GitHub repositories, issues, and PRs",
+      "config": {
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-github"],
+        "env": {
+          "GITHUB_TOKEN": "<YOUR_PERSONAL_ACCESS_TOKEN>"
+        }
+      },
+      "setup": "Create a personal access token at https://github.com/settings/tokens",
+      "requiredEnv": ["GITHUB_TOKEN"],
+      "category": "development"
+    },
+    {
+      "id": "postgres",
+      "name": "postgres",
+      "displayName": "PostgreSQL",
+      "description": "Query and manage PostgreSQL databases",
+      "config": {
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-postgres"],
+        "env": {
+          "POSTGRES_CONNECTION_STRING": "postgresql://user:password@localhost:5432/database"
+        }
+      },
+      "setup": "Provide your PostgreSQL connection string",
+      "requiredEnv": ["POSTGRES_CONNECTION_STRING"],
+      "category": "database"
+    },
+    {
+      "id": "sqlite",
+      "name": "sqlite",
+      "displayName": "SQLite",
+      "description": "Query and manage SQLite databases",
+      "config": {
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-sqlite", "/path/to/database.db"]
+      },
+      "setup": "Replace /path/to/database.db with your SQLite database path",
+      "requiredEnv": [],
+      "category": "database"
+    },
+    {
+      "id": "memory",
+      "name": "memory",
+      "displayName": "Memory",
+      "description": "Persistent key-value storage for agent memory",
+      "config": {
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-memory"]
+      },
+      "setup": "No setup required - stores data in ~/.mcp/memory",
+      "requiredEnv": [],
+      "category": "storage"
+    },
+    {
+      "id": "puppeteer",
+      "name": "puppeteer",
+      "displayName": "Puppeteer",
+      "description": "Browser automation and web scraping",
+      "config": {
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-puppeteer"]
+      },
+      "setup": "No setup required - will download Chromium on first use",
+      "requiredEnv": [],
+      "category": "automation"
+    },
+    {
+      "id": "slack",
+      "name": "slack",
+      "displayName": "Slack",
+      "description": "Send messages and interact with Slack workspaces",
+      "config": {
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-slack"],
+        "env": {
+          "SLACK_BOT_TOKEN": "<YOUR_BOT_TOKEN>",
+          "SLACK_TEAM_ID": "<YOUR_TEAM_ID>"
+        }
+      },
+      "setup": "Create a Slack app at https://api.slack.com/apps and get bot token",
+      "requiredEnv": ["SLACK_BOT_TOKEN", "SLACK_TEAM_ID"],
+      "category": "communication"
+    }
+  ]
+}

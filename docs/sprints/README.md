@@ -20,6 +20,13 @@ This folder contains sprint planning documents for the Sumerian Vibe-Runner IDE 
 | **10** | **LOVE Theme** | 1 week | Ive minimalist aesthetic with light/dark modes |
 | **11** | **Agent Experience** | 2 weeks | Full chat interface: parsing, @ mentions, /commands, images, sessions |
 | **12** | **Self-Healing** | 1 week | Autonomous error recovery loops and advanced context management |
+| **13** | **Loop Mode (Ralph Wiggum)** | 1 week | Autonomous iteration with promise detection |
+| **14** | **CLI Enhancements** | 1 week | Missing flags, slash commands, thinking levels |
+| **15** | **Multi-Agent Core** | 2 weeks | Agent pool, WorkforceState, spawning |
+| **16** | **Workforce UI** | 1 week | Sidebar tab, agent cards, terminal grid |
+| **17** | **Orchestration UX** | 1 week | Delegation cards, file locking, inline diff |
+| **18** | **Advanced Features** | 1 week | Autopilot, checkpoints, task queue |
+| **19** | **Integration & Testing** | 1-2 weeks | Backend integration, resource monitoring, security, testing |
 
 ## Sprint Documents
 
@@ -40,6 +47,15 @@ This folder contains sprint planning documents for the Sumerian Vibe-Runner IDE 
 ### v3.0 — Agent Experience
 - [Sprint 11: Agent Experience & VSCode Parity](./sprint-11-agent-experience.md)
 - [Sprint 12: Self-Healing & Advanced Context](./sprint-12-self-healing.md)
+
+### v4.0 — Agent Workflow System
+- [Sprint 13: Loop Mode (Ralph Wiggum)](./sprint-13-loop-mode.md)
+- [Sprint 14: CLI Enhancements](./sprint-14-cli-enhancements.md)
+- [Sprint 15: Multi-Agent Core](./sprint-15-multi-agent-core.md)
+- [Sprint 16: Workforce UI](./sprint-16-workforce-ui.md)
+- [Sprint 17: Orchestration UX](./sprint-17-orchestration-ux.md)
+- [Sprint 18: Advanced Features](./sprint-18-advanced-features.md)
+- [Sprint 19: Integration & Testing](./sprint-19-integration-testing.md)
 
 ## How to Use
 
@@ -64,4 +80,4 @@ Use the `/sprints` workflow command to get guidance on sprint execution.
 
 ---
 
-*Total Estimated Duration: 12 weeks (6 weeks MVP + 4 weeks Theming + 2 weeks Agent Experience)*
+*Total Estimated Duration: 20 weeks (6 weeks MVP + 4 weeks Theming + 2 weeks Agent Experience + 8 weeks Agent Workflow System)*

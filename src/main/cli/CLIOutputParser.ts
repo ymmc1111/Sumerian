@@ -23,6 +23,7 @@ export interface ParsedEvents {
 export class CLIOutputParser extends EventEmitter {
     private buffer: string = '';
     private accumulatedText: string = '';
+    private promisePattern: RegExp | null = null;
 
     constructor() {
         super();
@@ -73,6 +74,14 @@ export class CLIOutputParser extends EventEmitter {
         if (isTextContent(block)) {
             this.accumulatedText += block.text;
             this.emit('assistantText', block.text, true);
+            
+            // Check for completion promise
+            if (this.promisePattern && this.promisePattern.test(this.accumulatedText)) {
+                const match = this.accumulatedText.match(this.promisePattern);
+                if (match) {
+                    this.emit('promiseDetected', match[0]);
+                }
+            }
         } else if (isToolUseContent(block)) {
             this.emit('toolUse', block.name, block.id, block.input);
         } else if (isToolResultContent(block)) {
@@ -98,6 +107,12 @@ export class CLIOutputParser extends EventEmitter {
     public reset(): void {
         this.buffer = '';
         this.accumulatedText = '';
+    }
+
+    public setPromisePattern(promise: string | null): void {
+        this.promisePattern = promise 
+            ? new RegExp(`<promise>${promise}</promise>|\\b${promise}\\b`, 'i')
+            : null;
     }
 
     public getAccumulatedText(): string {

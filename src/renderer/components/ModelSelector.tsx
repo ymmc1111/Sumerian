@@ -17,10 +17,19 @@ const ModelSelector: React.FC = () => {
         return Sparkles;
     };
 
-    // Add 'Auto' at the top if not present in CLI models
+    // Add 'Auto' and thinking variants at the top
     const displayModels = [
         { id: 'auto', name: 'Auto (Default)', description: 'Let Claude CLI decide the best model' },
+        ...(agent.availableModels || []),
+        // Add thinking variants for common models
         ...(agent.availableModels || [])
+            .filter(m => m.id.includes('sonnet') || m.id.includes('opus'))
+            .filter(m => !m.id.includes('-thinking'))
+            .map(m => ({
+                id: `${m.id}-thinking`,
+                name: `${m.name} (Thinking)`,
+                description: 'Extended reasoning mode'
+            }))
     ];
 
     const currentModel = displayModels.find(m => m.id === agent.model) || displayModels[0];

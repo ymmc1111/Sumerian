@@ -47,7 +47,7 @@ export const PANEL_CONFIGS: Record<PanelType, PanelConfig> = {
 const createDefaultSlots = (): Record<PanelSlotId, PanelSlot> => ({
   A: { id: 'A', panelType: 'sidebar', x: 0, y: 0, width: 260, height: 100, isCollapsed: false, zIndex: 1 },
   B: { id: 'B', panelType: 'editor', x: 260, y: 0, width: 0, height: 70, isCollapsed: false, zIndex: 1 },
-  C: { id: 'C', panelType: 'agent', x: 0, y: 0, width: 380, height: 100, isCollapsed: false, zIndex: 1 },
+  C: { id: 'C', panelType: 'agent', x: 0, y: 0, width: 420, height: 100, isCollapsed: false, zIndex: 1 },
   D: { id: 'D', panelType: 'terminal', x: 260, y: 70, width: 0, height: 300, isCollapsed: false, zIndex: 1 },
 });
 
@@ -85,6 +85,36 @@ export type LayoutStore = LayoutState & LayoutActions;
 
 const LAYOUT_MODE_ORDER: LayoutMode[] = ['standard', 'hyper-focus', 'agent-first'];
 
+// Check and fix swapped panels on load
+const validateAndFixSlots = (slots: Record<PanelSlotId, PanelSlot>): Record<PanelSlotId, PanelSlot> => {
+  let fixed = { ...slots };
+  let needsFix = false;
+
+  // Ensure correct default positions: A=sidebar, B=editor, C=agent, D=terminal
+  if (slots.B?.panelType === 'agent' && slots.C?.panelType === 'editor') {
+    // Panels are swapped, fix them
+    console.log('[LayoutStore] Fixing swapped editor/agent panels');
+    fixed = {
+      ...fixed,
+      B: { ...fixed.B, panelType: 'editor' },
+      C: { ...fixed.C, panelType: 'agent' },
+    };
+    needsFix = true;
+  }
+
+  // Ensure agent panel has minimum width of 420 for header content
+  if (fixed.C?.width < 420) {
+    console.log('[LayoutStore] Fixing agent panel width');
+    fixed = {
+      ...fixed,
+      C: { ...fixed.C, width: 420 },
+    };
+    needsFix = true;
+  }
+
+  return needsFix ? fixed : slots;
+};
+
 export const useLayoutStore = create<LayoutStore>()(
   persist(
     (set, get) => ({
@@ -119,7 +149,7 @@ export const useLayoutStore = create<LayoutStore>()(
             // Restore defaults
             slots.A = { ...slots.A, isCollapsed: false, width: 260 };
             slots.B = { ...slots.B, isCollapsed: false };
-            slots.C = { ...slots.C, isCollapsed: false, width: 380 };
+            slots.C = { ...slots.C, isCollapsed: false, width: 420 };
             slots.D = { ...slots.D, isCollapsed: false, height: 30 };
             break;
         }
@@ -331,6 +361,14 @@ export const useLayoutStore = create<LayoutStore>()(
         slots: state.slots,
         stacks: state.stacks,
       } as LayoutStore),
+      onRehydrateStorage: () => (state) => {
+        if (state?.slots) {
+          const fixedSlots = validateAndFixSlots(state.slots);
+          if (fixedSlots !== state.slots) {
+            state.slots = fixedSlots;
+          }
+        }
+      },
     }
   )
 );

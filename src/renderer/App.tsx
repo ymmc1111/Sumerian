@@ -16,6 +16,8 @@ import WelcomeScreen from './components/WelcomeScreen';
 import SettingsModal from './components/SettingsModal';
 import CommandPalette from './components/CommandPalette';
 import ShortcutsHelp from './components/ShortcutsHelp';
+import ProjectSwitcher from './components/ProjectSwitcher';
+import DocsViewer from './components/DocsViewer';
 import ScanlineOverlay from './components/ScanlineOverlay';
 import DetachedPanelWindow from './components/DetachedPanelWindow';
 import { PanelSlotId, PanelType } from './types/layout';
@@ -48,7 +50,7 @@ const PanelComponent: React.FC<{ panelType: PanelType; slotId: PanelSlotId }> = 
 };
 
 const App: React.FC = () => {
-    const { init, project } = useAppStore();
+    const { init, project, ui, toggleProjectSwitcher, toggleDocsViewer } = useAppStore();
     const { mode, slots, isDragging, removeDetachedPanel, detachedPanels } = useLayoutStore();
     const { dragState } = useDragPanel();
     useKeyboardShortcuts();
@@ -127,6 +129,11 @@ const App: React.FC = () => {
                 });
             });
 
+            // Listen for resource updates from agents
+            const cleanupResourceUpdate = window.sumerian.cli.onResourceUpdate((data: { agentId: string; cpu: number; memory: number }) => {
+                useAppStore.getState().updateAgentResources(data.agentId, data.cpu, data.memory);
+            });
+
             return () => {
                 cleanupPanelClosed();
                 cleanupAgentMessage();
@@ -134,6 +141,7 @@ const App: React.FC = () => {
                 cleanupAgentStatus();
                 cleanupAgentClear();
                 cleanupAgentSessionLoaded();
+                cleanupResourceUpdate();
             };
         }
     }, []);
@@ -156,6 +164,15 @@ const App: React.FC = () => {
                 <SettingsModal />
                 <CommandPalette />
                 <ShortcutsHelp />
+                <ProjectSwitcher 
+                    isOpen={ui.isProjectSwitcherOpen} 
+                    onClose={toggleProjectSwitcher} 
+                />
+                <DocsViewer 
+                    isOpen={ui.isDocsViewerOpen} 
+                    onClose={toggleDocsViewer}
+                    initialDocId={ui.activeDocId}
+                />
             </div>
         );
     }
@@ -242,6 +259,15 @@ const App: React.FC = () => {
             <SettingsModal />
             <CommandPalette />
             <ShortcutsHelp />
+            <ProjectSwitcher 
+                isOpen={ui.isProjectSwitcherOpen} 
+                onClose={toggleProjectSwitcher} 
+            />
+            <DocsViewer 
+                isOpen={ui.isDocsViewerOpen} 
+                onClose={toggleDocsViewer}
+                initialDocId={ui.activeDocId}
+            />
             <ScanlineOverlay />
 
             {/* Ghost Frame for drag preview */}

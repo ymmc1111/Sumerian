@@ -1,0 +1,44 @@
+{
+  "tdd": {
+    "name": "TDD Development",
+    "description": "Test-Driven Development workflow",
+    "prompt": "Implement {feature} using Test-Driven Development.\n\nProcess:\n1. Write a failing test for the next piece of functionality\n2. Implement minimal code to make the test pass\n3. Run all tests to verify\n4. If any tests fail, fix the code and retry\n5. Refactor if needed while keeping tests green\n6. Repeat until feature is complete\n\nOutput <promise>DONE</promise> when all tests are green and feature is complete.",
+    "promise": "DONE",
+    "maxIterations": 50
+  },
+  "bugfix": {
+    "name": "Bug Fixing",
+    "description": "Systematic bug resolution",
+    "prompt": "Fix bug: {description}\n\nSteps:\n1. Reproduce the bug to confirm it exists\n2. Identify the root cause through debugging\n3. Implement a fix\n4. Write a regression test to prevent recurrence\n5. Verify the fix works and no new issues introduced\n6. Run full test suite\n\nOutput <promise>FIXED</promise> when bug is resolved and tests pass.",
+    "promise": "FIXED",
+    "maxIterations": 20
+  },
+  "refactor": {
+    "name": "Code Refactoring",
+    "description": "Improve code structure without changing behavior",
+    "prompt": "Refactor {component} for {goal}.\n\nRequirements:\n1. All existing tests must continue to pass\n2. Make incremental changes\n3. Run tests after each change\n4. If tests fail, revert and try a different approach\n5. Commit when tests are green\n6. Continue until refactoring goal achieved\n\nOutput <promise>COMPLETE</promise> when refactoring is done and all tests pass.",
+    "promise": "COMPLETE",
+    "maxIterations": 25
+  },
+  "feature": {
+    "name": "Feature Implementation",
+    "description": "Build a new feature from scratch",
+    "prompt": "Build {feature}.\n\nRequirements:\n{requirements}\n\nProcess:\n1. Break down into small implementable steps\n2. Implement each step\n3. Write tests (aim for >80% coverage)\n4. Run tests and fix any failures\n5. Verify feature works as expected\n6. Document the feature\n\nOutput <promise>SHIPPED</promise> when feature is complete, tested, and documented.",
+    "promise": "SHIPPED",
+    "maxIterations": 30
+  },
+  "debug": {
+    "name": "Deep Debugging",
+    "description": "Investigate and fix complex issues",
+    "prompt": "Debug issue: {description}\n\nApproach:\n1. Add logging/debugging statements to track execution\n2. Reproduce the issue\n3. Analyze logs and identify problem area\n4. Form hypothesis about root cause\n5. Test hypothesis\n6. If hypothesis wrong, form new one and repeat\n7. Once root cause found, implement fix\n8. Verify fix resolves issue\n\nOutput <promise>RESOLVED</promise> when issue is fixed and verified.",
+    "promise": "RESOLVED",
+    "maxIterations": 15
+  },
+  "optimize": {
+    "name": "Performance Optimization",
+    "description": "Improve code performance",
+    "prompt": "Optimize {component} for {metric}.\n\nProcess:\n1. Establish baseline performance metrics\n2. Profile to identify bottlenecks\n3. Implement optimization\n4. Measure performance improvement\n5. If target not met, try different optimization\n6. Ensure tests still pass\n7. Repeat until target achieved\n\nOutput <promise>OPTIMIZED</promise> when performance target is met.",
+    "promise": "OPTIMIZED",
+    "maxIterations": 20
+  }
+}

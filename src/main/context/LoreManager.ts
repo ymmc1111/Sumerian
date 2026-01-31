@@ -1,6 +1,7 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { existsSync } from 'fs';
+import { MemoryManager } from '../memory/MemoryManager';
 
 export interface LoreFile {
     name: string;
@@ -11,10 +12,12 @@ export interface LoreFile {
 export class LoreManager {
     private projectRoot: string;
     private loreDir: string;
+    private memoryManager: MemoryManager;
 
     constructor(projectRoot: string) {
         this.projectRoot = projectRoot;
         this.loreDir = path.join(projectRoot, '.sumerian', 'lore');
+        this.memoryManager = new MemoryManager(projectRoot);
     }
 
     /**
@@ -59,5 +62,29 @@ export class LoreManager {
             injection += `\n--- END LORE: ${file.name} ---\n\n`;
         }
         return injection;
+    }
+
+    /**
+     * Formats lore files and memory into context injection string.
+     */
+    public async formatContextWithMemory(loreFiles: LoreFile[]): Promise<string> {
+        let context = this.formatLoreForInjection(loreFiles);
+        
+        try {
+            const memory = await this.memoryManager.read();
+            if (memory && memory.trim().length > 0) {
+                context += "\n--- AGENT MEMORY ---\n";
+                context += memory;
+                context += "\n--- END AGENT MEMORY ---\n\n";
+            }
+        } catch (error) {
+            console.error('Failed to read memory for context:', error);
+        }
+        
+        return context;
+    }
+
+    public getMemoryManager(): MemoryManager {
+        return this.memoryManager;
     }
 }

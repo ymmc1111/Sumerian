@@ -33,6 +33,12 @@ export interface LoreFile {
 export type AgentStreamStatus = 'idle' | 'thinking' | 'streaming' | 'tool_use';
 export type AgentMode = 'chat' | 'code';
 
+export interface LoopConfig {
+    prompt: string;
+    completionPromise: string;
+    maxIterations: number;
+}
+
 export interface ToolAction {
     id: string;
     name: string;
@@ -42,6 +48,79 @@ export interface ToolAction {
     resultSummary?: string;
     beforeContent?: string;
     afterContent?: string;
+}
+
+export interface CompletionReport {
+    result: string;
+    filesModified: string[];
+    duration: number;
+    usage: { input: number; output: number };
+    error?: string;
+}
+
+export interface AgentInstance {
+    id: string;
+    persona: {
+        id: string;
+        model: string;
+        systemPrompt: string;
+        allowedTools: string[];
+        disallowedTools: string[];
+        maxBudgetUsd?: number;
+    };
+    status: 'idle' | 'active' | 'complete' | 'error';
+    task: string;
+    startTime: number;
+    lockedFiles: string[];
+    messageHistory: Message[];
+    completionReport?: CompletionReport;
+    resources?: {
+        cpuHistory: number[];
+        memoryHistory: number[];
+        lastUpdate: number;
+    };
+}
+
+export interface Task {
+    id: string;
+    persona: string;
+    description: string;
+    priority: 'low' | 'medium' | 'high';
+    status: 'queued' | 'assigned' | 'complete';
+    assignedAgentId?: string;
+}
+
+export interface DelegationProposal {
+    id: string;
+    persona: {
+        id: string;
+        model: string;
+        systemPrompt: string;
+        allowedTools: string[];
+        disallowedTools: string[];
+        maxBudgetUsd?: number;
+    };
+    model: string;
+    task: string;
+    files: string[];
+    estimatedCost?: number;
+}
+
+export interface QueuedTask {
+    id: string;
+    type: 'message' | 'loop' | 'spawn';
+    content: string;
+    config?: any;
+    status: 'pending' | 'active' | 'complete' | 'error';
+    createdAt: number;
+}
+
+export interface WorkforceState {
+    activeAgents: Map<string, AgentInstance>;
+    taskQueue: Task[];
+    pendingProposal: DelegationProposal | null;
+    queuedTasks: QueuedTask[];
+    queueActive: boolean;
 }
 
 export interface AgentState {
@@ -68,6 +147,10 @@ export interface AgentState {
     } | null;
     mode: AgentMode;
     availableModels: CLIModel[];
+    loopActive: boolean;
+    loopConfig: LoopConfig | null;
+    loopIteration: number;
+    autopilotMode: boolean;
 }
 
 export interface CLIModel {
@@ -90,6 +173,9 @@ export interface UIState {
     activePanel: 'editor' | 'agent' | 'terminal';
     isCommandPaletteOpen: boolean;
     isShortcutsHelpOpen: boolean;
+    isProjectSwitcherOpen: boolean;
+    isDocsViewerOpen: boolean;
+    activeDocId?: string;
     terminals: TerminalInstance[];
     activeTerminalId: string | null;
     settings: {
@@ -98,6 +184,9 @@ export interface UIState {
         braveModeByDefault: boolean;
         isSettingsOpen: boolean;
         terminalMirroring: 'none' | 'raw' | 'formatted';
+        maxBudgetUsd?: number;
+        mcpConfigPath?: string;
+        additionalDirs?: string[];
     };
 }
 
@@ -128,6 +217,7 @@ export interface AppState {
     project: ProjectState;
     editor: EditorState;
     agent: AgentState;
+    workforce: WorkforceState;
 
     // UI Actions
     setSidebarWidth: (width: number) => void;
@@ -140,6 +230,9 @@ export interface AppState {
     setActiveTerminal: (id: string) => void;
     toggleCommandPalette: () => void;
     toggleShortcutsHelp: () => void;
+    toggleProjectSwitcher: () => void;
+    toggleDocsViewer: () => void;
+    openDocsWithTopic: (docId: string) => void;
     updateSettings: (settings: Partial<UIState['settings']>) => void;
     toggleSettings: () => void;
 
@@ -167,6 +260,7 @@ export interface AppState {
     updateLastAgentMessage: (content: string) => void;
     setAgentStatus: (status: AgentState['status']) => void;
     setBraveMode: (enabled: boolean) => void;
+    setAutopilotMode: (enabled: boolean) => void;
     setModel: (model: string) => void;
     setMode: (mode: AgentMode) => void;
     setAutoContextEnabled: (enabled: boolean) => void;
@@ -181,6 +275,8 @@ export interface AppState {
     pruneHistory: () => void;
     toggleFilePin: (path: string) => void;
     clearTerminalError: () => void;
+    startLoop: (prompt: string, completionPromise: string, maxIterations: number) => Promise<void>;
+    cancelLoop: () => Promise<void>;
 
     saveSession: () => Promise<void>;
     loadSession: (id: string) => Promise<void>;
@@ -188,4 +284,25 @@ export interface AppState {
     refreshModels: () => Promise<void>;
     forceRefreshModels: () => Promise<void>;
     init: () => Promise<void>;
+
+    // Workforce Actions
+    spawnAgent: (persona: AgentInstance['persona'], task: string, workingDir?: string) => Promise<string>;
+    terminateAgent: (agentId: string) => Promise<void>;
+    getAgent: (agentId: string) => AgentInstance | null;
+    getAllAgents: () => AgentInstance[];
+    updateAgentResources: (agentId: string, cpu: number, memory: number) => void;
+    queueTask: (task: Task) => void;
+    dequeueTask: (taskId: string) => void;
+    proposeDelegation: (proposal: DelegationProposal) => void;
+    approveDelegation: () => Promise<void>;
+    rejectDelegation: () => void;
+    revertAgent: (agentId: string) => Promise<boolean>;
+    
+    // Task Queue Actions
+    addTaskToQueue: (task: QueuedTask) => void;
+    removeTaskFromQueue: (taskId: string) => void;
+    reorderTasks: (fromIndex: number, toIndex: number) => void;
+    processNextTask: () => Promise<void>;
+    setQueueActive: (active: boolean) => void;
+    updateTaskStatus: (taskId: string, status: QueuedTask['status']) => void;
 }

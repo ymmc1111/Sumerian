@@ -214,6 +214,34 @@ export class FileService implements IFileService {
         return await this.undoManager.undo();
     }
 
+    async createCheckpoint(label: string, files: string[]): Promise<string> {
+        if (!this.snapshotManager) {
+            throw new Error('Project not initialized');
+        }
+        return await this.snapshotManager.createCheckpoint(label, files);
+    }
+
+    async listCheckpoints(): Promise<any[]> {
+        if (!this.snapshotManager) {
+            return [];
+        }
+        return await this.snapshotManager.listCheckpoints();
+    }
+
+    async rollbackToCheckpoint(checkpointId: string): Promise<void> {
+        if (!this.snapshotManager) {
+            throw new Error('Project not initialized');
+        }
+        await this.snapshotManager.rollbackToCheckpoint(checkpointId);
+    }
+
+    async deleteCheckpoint(checkpointId: string): Promise<void> {
+        if (!this.snapshotManager) {
+            throw new Error('Project not initialized');
+        }
+        await this.snapshotManager.deleteCheckpoint(checkpointId);
+    }
+
     watch(dirPath: string, callback: (event: FileEvent) => void): () => void {
         const watcher = chokidar.watch(dirPath, {
             ignored: [

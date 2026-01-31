@@ -1,3 +1,31 @@
+export interface ProjectEntry {
+    path: string;
+    name: string;
+    lastOpened: number;
+    lastSessionId?: string;
+    configOverrides?: ProjectConfigOverrides;
+}
+
+export interface ProjectConfigOverrides {
+    braveMode?: boolean;
+    model?: string;
+    mcpConfigPath?: string;
+    additionalDirs?: string[];
+    allowedTools?: string[];
+    disallowedTools?: string[];
+}
+
+export interface ProjectConfig {
+    version: 1;
+    name?: string;
+    braveMode?: boolean;
+    model?: string;
+    mcpConfigPath?: string;
+    additionalDirs?: string[];
+    allowedTools?: string[];
+    disallowedTools?: string[];
+}
+
 export interface SumerianAPI {
     system: {
         getVersion: () => string;
@@ -14,6 +42,24 @@ export interface SumerianAPI {
         onToolAction: (callback: (data: { type: 'use' | 'result'; name?: string; id: string; input?: Record<string, unknown>; content?: string; isError?: boolean }) => void) => () => void;
         onAgentStatus: (callback: (data: { status: string; result?: string; usage?: { input: number; output: number }; type?: string; message?: string }) => void) => () => void;
         setModel: (model: string) => Promise<boolean>;
+        setMaxBudgetUsd: (budget: number | null) => Promise<boolean>;
+        setMcpConfigPath: (path: string | null) => Promise<boolean>;
+        setAdditionalDirs: (dirs: string[]) => Promise<boolean>;
+        setAllowedTools: (tools: string[]) => Promise<boolean>;
+        setDisallowedTools: (tools: string[]) => Promise<boolean>;
+        listModels: () => Promise<any[]>;
+        refreshModels: () => Promise<boolean>;
+        onModelsUpdated: (callback: (models: any[]) => void) => () => void;
+        startLoop: (prompt: string, completionPromise: string, maxIterations: number) => Promise<boolean>;
+        cancelLoop: () => Promise<boolean>;
+        onLoopIteration: (callback: (data: { iteration: number; max: number }) => void) => () => void;
+        onLoopComplete: (callback: (data: { reason: 'promise' | 'max_iterations' | 'cancelled' }) => void) => () => void;
+        spawnAgent: (persona: any, task: string, workingDir?: string) => Promise<string>;
+        terminateAgent: (agentId: string) => Promise<boolean>;
+        getAgent: (agentId: string) => Promise<any>;
+        getAllAgents: () => Promise<any[]>;
+        killAll: () => Promise<boolean>;
+        onResourceUpdate: (callback: (data: { agentId: string; cpu: number; memory: number }) => void) => () => void;
     };
     session: {
         getStatus: () => Promise<any>;
@@ -29,6 +75,13 @@ export interface SumerianAPI {
         select: () => Promise<string | null>;
         getRecent: () => Promise<string[]>;
         clearRecent: () => Promise<boolean>;
+        listRecent: (limit?: number) => Promise<ProjectEntry[]>;
+        get: (path: string) => Promise<ProjectEntry | null>;
+        remove: (path: string) => Promise<boolean>;
+        updateConfig: (path: string, config: ProjectConfigOverrides) => Promise<boolean>;
+        loadConfig: (path: string) => Promise<ProjectConfig | null>;
+        saveConfig: (path: string, config: ProjectConfig) => Promise<boolean>;
+        updateSession: (path: string, sessionId: string) => Promise<boolean>;
     };
     terminal: {
         create: (id: string, cwd: string) => Promise<boolean>;
@@ -46,9 +99,19 @@ export interface SumerianAPI {
         watch: (path: string) => Promise<void>;
         onChanged: (callback: (event: any) => void) => () => void;
         saveImage: (path: string, base64Data: string) => Promise<string>;
+        createCheckpoint: (label: string, files: string[]) => Promise<string>;
+        listCheckpoints: () => Promise<any[]>;
+        rollbackToCheckpoint: (checkpointId: string) => Promise<void>;
+        deleteCheckpoint: (checkpointId: string) => Promise<void>;
     };
     lore: {
         list: (projectPath: string) => Promise<any[]>;
+    };
+    memory: {
+        read: (projectPath: string) => Promise<string>;
+        write: (projectPath: string, content: string) => Promise<boolean>;
+        append: (projectPath: string, entry: string) => Promise<boolean>;
+        clear: (projectPath: string) => Promise<boolean>;
     };
     preferences: {
         get: () => Promise<any>;
@@ -70,6 +133,10 @@ export interface SumerianAPI {
         broadcast: (channel: string, data: any) => Promise<void>;
         onUpdate: (callback: (data: { key: string; data: any }) => void) => () => void;
         onSync: (channel: string, callback: (data: any) => void) => () => void;
+    };
+    docs: {
+        read: (docPath: string) => Promise<string>;
+        list: () => Promise<Array<{ id: string; title: string; path: string }>>;
     };
 }
 

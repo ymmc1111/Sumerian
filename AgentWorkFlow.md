@@ -1,179 +1,439 @@
-PRD: Sumerian Multi-Agent Workforce (v1.1)
-1. Product Objective
-To enable users to orchestrate a team of specialized Claude instances that work in parallel. This feature optimizes context usage by offloading specific sub-tasks (e.g., testing, documentation, or frontend styling) to secondary agents, increasing development velocity and reducing the "context bloating" of a single session.
+# PRD: Sumerian Agent Workflow System (v2.0)
 
-2. Workforce Architecture
-Sumerian will implement a Lead Conductor pattern:
+## Executive Summary
 
-The Conductor (Main Agent): The primary Sonnet 4.5/Opus agent that manages the high-level plan and delegates tasks.
+Sumerian's Agent Workflow System transforms the IDE into a high-autonomy development environment powered by multi-agent orchestration, autonomous iteration loops (Ralph Wiggum), and intelligent context management. This system enables users to delegate complex tasks to specialized AI agents that work in parallel, iterate autonomously until completion, and maintain context awareness across long development sessions.
 
-The Workforce (Sub-Agents): Ephemeral Claude instances (typically using Claude Haiku for speed/cost or Sonnet for logic) spawned to complete isolated technical tickets.
+**Key Differentiators:**
+- **Conductor Pattern**: Lead agent (Opus) orchestrates specialized sub-agents
+- **Ralph Wiggum Loop Mode**: Autonomous iteration with promise-based completion
+- **Brave Mode**: Minimal approval friction for maximum velocity
+- **Multi-Agent Workforce**: Parallel execution with conflict prevention
 
-3. Functional Requirements
-FR-1: Sub-Agent Spawning (/spawn)
-Capability: The Conductor or User can spawn a sub-agent with a specific "Role" and "Objective."
+---
 
-Context Isolation: Sub-agents only receive the relevant files and instructions needed for their specific ticket, preserving the global token limit.
+## 1. Core Architecture
 
-Lifecycle: Sub-agents auto-terminate upon task completion, returning a "Completion Report" to the Conductor.
+### 1.1 Conductor Pattern
 
-FR-2: The Workforce Dashboard
-UI Component: A new "Workforce" tab in the Glass Sidebar showing active agents.
+The system implements a hierarchical agent structure:
 
-Real-time Monitoring: Visual indicators (spinners/progress bars) for each agent's current activity (e.g., "Agent-2: Writing Unit Tests...").
+**The Conductor (Lead Agent)**
+- Model: Claude Opus 4.5
+- Role: High-level planning, task delegation, orchestration
+- Capabilities: Multi-step reasoning, complex decision-making, sub-agent management
 
-Manual Intervention: The user can click into any sub-agent to view its specific logs or "Kill" a rogue process.
+**The Workforce (Sub-Agents)**
+- Ephemeral Claude instances spawned for specific tasks
+- Context-isolated to preserve token efficiency
+- Auto-terminate on completion with status reports
 
-FR-3: Parallel Execution & "Teammate" Communication
-Task Broadcasting: The Conductor can broadcast a shared objective (e.g., "Refactor API") and assign sub-components to different agents.
+### 1.2 Agent Pool Architecture
 
-Inter-Agent Sync: A shared .sumerian/workforce/state.json file allows agents to acknowledge each other's work and avoid merge conflicts.
+**CLIManager Refactor**
+```typescript
+interface AgentProcess {
+  id: string;
+  persona: Persona;
+  status: 'idle' | 'active' | 'complete' | 'error';
+  pty: IPty;
+  messageHistory: Message[];
+}
 
-FR-4: Agent Specialization Profiles
-The system will provide pre-defined "Personas" for spawned agents:
+private agentPool: Map<string, AgentProcess>;
+```
 
-The Architect: Scans the codebase and creates implementation plans (Haiku-powered).
-
-The Builder: Writes the core logic and handles file operations.
-
-The QA/Tester: Generates test suites and runs them in a loop until they pass.
-
-The Documenter: Scans new code and updates README.md or lore files.
-
-4. Technical Implementation
-4.1 CLI Orchestration
-The CLIManager.ts must be updated to manage a Pool of ptyProcess instances instead of a single reference.
-
-Process ID (AID): Each agent is assigned a unique Agent ID (e.g., sumerian-agent-123).
-
-Stream Routing: IPC must route stdout/stderr from each sub-process to a specific UI buffer in the AgentPanel.tsx.
-
-4.2 State Management (useAppStore.ts)
-The Zustand store will be updated to include:
-
-TypeScript
-
+**WorkforceState in Zustand**
+```typescript
 interface WorkforceState {
   activeAgents: Map<string, AgentInstance>;
   taskQueue: Task[];
-  spawnAgent: (role: Persona) => void;
+  spawnAgent: (role: Persona, task: string) => Promise<string>;
   terminateAgent: (aid: string) => void;
+  getAgent: (aid: string) => AgentInstance | null;
 }
-5. User Experience (UX)
-5.1 The "Conductor" Chat
-The main AgentPanel remains the primary interface. When the Conductor decides to delegate, the UI displays a "Workforce Delegation" card:
+```
 
-🤖 Conductor: I am spawning The Tester to handle the Vitest suite while I refactor the controller.
+### 1.3 Inter-Agent Sync
 
-[Agent-1: Active] -> tests/unit/CLIManager.test.ts
+**Shared State File**: `.sumerian/workforce/state.json`
+- Tracks active agents and their assigned files
+- Prevents merge conflicts through file locking
+- Enables agents to acknowledge each other's work
 
-[Me: Active] -> src/main/cli/CLIManager.ts
+---
 
-5.2 Split-View Terminal
-The TerminalPanel will support tabs or a "Grid View" to show the simultaneous output of multiple agents running terminal commands in Brave Mode.
+## 2. Agent Personas
 
-6. Guardrails & Multi-Agent Safety
-Conflict Prevention: If two agents attempt to write to the same file, the FileService must implement a file-lock mechanism.
+| Persona | Model | Capabilities | Tool Restrictions |
+|---------|-------|--------------|-------------------|
+| **Conductor** | Opus 4.5 | Orchestration, planning, delegation | Full access |
+| **Architect** | Sonnet 4.5 | Codebase analysis, implementation plans | Read-only |
+| **Builder** | Sonnet 4.5 | Write code, file operations | Full access |
+| **QA/Tester** | Sonnet 4.5 | Generate/run tests, iterative debugging | Test files only |
+| **Documenter** | Haiku 4.5 | Update docs, lore files | Docs only |
+| **Loop Agent** | Sonnet 4.5 / Opus | Autonomous iteration (Ralph Wiggum) | Configurable |
 
-Recursive Spawning Limit: To prevent runaway costs or infinite loops, sub-agents cannot spawn their own sub-agents.
+**Persona Configuration** (`personas.ts`):
+```typescript
+export const PERSONAS: Record<string, PersonaConfig> = {
+  conductor: {
+    model: 'claude-opus-4-5-20251101',
+    systemPrompt: 'You are the Conductor...',
+    allowedTools: ['*'],
+    disallowedTools: []
+  },
+  architect: {
+    model: 'claude-sonnet-4-5-20250929',
+    systemPrompt: 'You are the Architect...',
+    allowedTools: ['read_file', 'list_dir', 'grep_search'],
+    disallowedTools: ['write_to_file', 'edit']
+  },
+  // ...
+};
+```
 
-Workforce Kill Switch: A global "Halt All Agents" button in the header that kills all background node-pty processes immediately.
+---
 
-7. Success Metrics
-Parallelism: Ability to run at least 3 concurrent agents without UI lag.
+## 3. Ralph Wiggum Loop Mode
 
-Token Efficiency: 30% reduction in Conductor context size by offloading "heavy" file reads to sub-agents.
+### 3.1 Concept
 
-Throughput: 50% reduction in time-to-complete for multi-file features.
+Autonomous iteration loops inspired by the Ralph Wiggum technique:
+- Agent receives a task with clear completion criteria
+- Iterates until it outputs a **completion promise** or hits max iterations
+- Self-corrects on failures, treating errors as data
 
-1. Workforce "Glass" Sidebar Tab
-A new activity icon in the sidebar will open the Workforce Monitor. Following the Nexus principles of minimalism and high contrast:
+### 3.2 Promise Detection
 
-Agent Status Cards: Each background agent is represented by a monochromatic card showing its ID, Persona (e.g., Builder, QA), and a real-time Activity String (e.g., npm test --watch).
+**Pattern Matching**:
+```
+<promise>COMPLETE</promise>
+```
+or bare word:
+```
+DONE
+```
 
-Context Scoping Badge: Each card displays a badge showing exactly which subdirectory that agent is locked into, visually reinforcing the Security Boundaries rule that agents cannot access files outside the project without explicit confirmation.
+**Implementation** (`CLIOutputParser.ts`):
+```typescript
+private promisePattern: RegExp | null = null;
 
-Resource Usage: A small sparkline showing CPU/Memory for that specific node-pty process to ensure the NFR-2 Performance cap of 512MB is being respecd.
+public setPromisePattern(promise: string | null): void {
+  this.promisePattern = promise 
+    ? new RegExp(`<promise>${promise}</promise>|\\b${promise}\\b`, 'i')
+    : null;
+}
+```
 
-2. Multi-Process Terminal Grid
-To maintain the Shadow Terminal requirement while running multiple agents, the TerminalPanel must evolve into a grid or tabbed view:
+### 3.3 Loop Control
 
-Automatic Focus Switching: Clicking an agent card in the sidebar instantly focuses that agent's specific terminal stream in the bottom panel.
+**Commands**:
+- `/loop "prompt" --promise "DONE" --max 20`
+- `/cancel-loop`
 
-Brave Mode Indicators: Any terminal running with --dangerously-skip-permissions is bordered with a subtle, pulsing amber glow (#f59e0b) to signal high-autonomy mode is active.
+**Safety**:
+- Max iterations cap (default: 20)
+- Cancel button in UI
+- 1-second delay between iterations
 
-The "Halt All" Kill Switch: A persistent, high-contrast Red button in the terminal header that triggers a global kill() across all ptyProcess instances in the CLIManager.
+### 3.4 Use Cases
 
-3. Delegation UX & Conflict Guardrails
-When the Conductor decides to delegate, the UI must facilitate "Rule 3: Propose Before Executing":
+| Use Case | Prompt Template | Max Iterations |
+|----------|-----------------|----------------|
+| **TDD Development** | Implement feature using TDD. Write tests, implement, iterate until all green. | 50 |
+| **Bug Fixing** | Fix bug: [description]. Reproduce, identify root cause, implement fix, verify. | 20 |
+| **Refactoring** | Refactor [component] for [goal]. All tests must pass. Incremental commits. | 25 |
+| **Feature Implementation** | Build [feature]. Requirements: [list]. Tests >80% coverage. | 30 |
 
-Delegation Proposal Card: Before spawning a worker, the Conductor must present a card in the AgentPanel detailing:
+### 3.5 Prompt Templates
 
-Target Agent: (e.g., Haiku-4.5).
+**File**: `loop-templates.json`
+```json
+{
+  "tdd": {
+    "name": "TDD Development",
+    "prompt": "Implement {feature} using TDD.\n\nProcess:\n1. Write failing test\n2. Implement minimal code\n3. Run tests\n4. If failing, fix and retry\n5. Refactor if needed\n6. Repeat\n\nOutput <promise>DONE</promise> when all tests green.",
+    "promise": "DONE",
+    "maxIterations": 50
+  }
+}
+```
 
-Scope: Specific files to be modified.
+---
 
-Task: The exact command or logic to be run.
+## 4. Functional Requirements
 
-File Locking Visualization: In the File Tree, any file currently being edited by a background agent is marked with a "locked" icon and the Agent ID. This prevents the user or another agent from violating Rule 5 (Preserving existing functionality) by creating race conditions.
+### FR-1: Sub-Agent Spawning
 
-4. Verification & Hand-off (DoD)
-To satisfy the Definition of Done (DoD) and Rule 4 (Verify Before Moving On):
+**Command**: `/spawn <persona> "<task>" [--model <model>]`
 
-Completion Reports: When a background task finishes, the agent card transforms into a "Report" state.
+**Example**:
+```
+/spawn Tester "Run unit tests for CLIManager" --model sonnet
+```
 
-Snapshot Review: Users can click "Review Changes" to see an Inline Diff of all file modifications made by that specific agent before they are "Integrated" (L3) or "Verified" (L4).
+**Behavior**:
+1. Create new `AgentProcess` with unique ID
+2. Isolate context (only relevant files)
+3. Spawn pty process with persona config
+4. Route output to dedicated UI buffer
+5. Auto-terminate on completion
 
-Rollback Shortcut: A "Revert Agent" button is placed directly on the completion report, utilizing the UndoManager to restore the project to the pre-task snapshot.
+### FR-2: Workforce Dashboard
 
-5. Security Boundary Modals
-For actions that hit the Security Boundaries (like requesting network access or files outside the project):
+**UI Component**: New "Workforce" tab in Glass Sidebar
 
-Isolated Confirmation: A dedicated modal that interrupts the background process. It must clearly state: "Agent [ID] is requesting access to [External Path]. This violates default project sandboxing. Allow?".
+**Features**:
+- Agent status cards (ID, persona, activity, status)
+- Real-time progress indicators
+- Context scoping badge (locked directory)
+- Resource usage sparklines (CPU/Memory)
+- Click to focus agent
+- Kill button per agent
 
-Audit Logging: The UI will include a "Security Log" view that streams from ~/.sumerian/audit.log, ensuring every background command is indexed and reviewable.
+### FR-3: Parallel Execution
 
-https://code.claude.com/docs/en/cli-reference
+**Task Broadcasting**: Conductor assigns sub-tasks to multiple agents
 
-1. Missing Core Flags (Advanced Orchestration)
-The current implementation misses several flags that are critical for a "Pro" IDE experience:
+**Inter-Agent Sync**: `.sumerian/workforce/state.json`
+```json
+{
+  "agents": {
+    "agent-123": {
+      "persona": "Builder",
+      "lockedFiles": ["src/main/cli/CLIManager.ts"],
+      "status": "active"
+    }
+  }
+}
+```
 
---agents: This allows you to define custom subagents dynamically via JSON. Since your PRD specifically mentions a "Multi-Agent Workforce," using this flag to define specialized roles (e.g., "The Tester" or "The Architect") at runtime is more native than manual orchestration.
+### FR-4: Loop Mode
 
---mcp-config: Crucial for your FR-4 (Extension Support). It allows you to load MCP servers from specific JSON files, which is necessary if you want to offer project-specific tools like "Sequential Thinking" or "Google Search".
+**Command**: `/loop "<prompt>" --promise "<text>" --max <n>`
 
---allow-dangerously-skip-permissions: This is a safer "prep" flag compared to your currently used --dangerously-skip-permissions. It enables permission bypassing as an option without immediately activating it, which could be used for a more granular "Brave Mode".
+**UI**: `LoopIndicator` component with:
+- Progress bar
+- Iteration count (current/max)
+- Promise display
+- Cancel button
 
---add-dir: Your IDE currently lacks a way to handle monorepos. This flag allows Claude to access additional working directories outside the immediate project root, satisfying your Security Boundary requirements for approved external paths.
+### FR-5: Detached Agent Window
 
---max-budget-usd: A vital safety feature for users. Even with a Max subscription, adding a safety cap for any API-based fallback or high-token subagent tasks protects the user from unexpected usage.
+**Feature**: Pop-out agent panel to separate window
 
-2. Missing Slash Commands (UI/UX)
-Your AgentPanel.tsx should eventually provide shortcuts or UI triggers for these commands:
+**Benefits**:
+- Multi-monitor workflows
+- Focus mode
+- Parallel observation
 
-/compact: Essential for your context management strategy. It summarizes history to clear the context window for complex tasks without losing the thread.
+### FR-6: Autopilot Mode
 
-/review: Directly supports your DoD (Definition of Done). It requests a code review of current changes, perfect for the "Conductor" to run after a subagent finishes.
+**Toggle**: In agent header
 
-/context: Provides a "fuel gauge" for context usage. Your TokenUsageDisplay.tsx could pull visual data from this command to show the user when the agent is getting "full".
+**Behavior**: Chain actions without per-step approval (still respects security boundaries)
 
-3. Authentication & Credential Refinements
-The PRD mentions an OAuth Bridge, but technically:
+---
 
-Credential Path: The official CLI stores tokens in ~/.claude/.credentials.json.
+## 5. CLI Enhancements
 
-Direct API Option: While Sumerian targets Max users, you should support the ANTHROPIC_API_KEY environment variable as a fallback. The CLI automatically looks for this before checking the .credentials.json file.
+### 5.1 Missing Flags
 
-4. Thinking Mode Refinement
-In your CLIManager.ts, you detect thinking by string matching, but the CLI has updated levels:
+| Flag | Purpose | Implementation |
+|------|---------|----------------|
+| `--agents` | Custom subagent definitions via JSON | Sprint 15 |
+| `--mcp-config` | Load MCP servers from config | Sprint 14 |
+| `--max-budget-usd` | Cost safety cap | Sprint 14 |
+| `--add-dir` | Monorepo support | Sprint 14 |
+| `--disallowedTools` | Restrict sub-agent tools | Sprint 14 |
+| `--allowedTools` | Pre-approve tools | Sprint 14 |
 
-Extended Thinking Levels: You can use --think, but the CLI also understands graduated phrases in natural language: "think" < "think hard" < "think harder" < "ultrathink".
+### 5.2 Slash Commands
 
-Beta Headers: For API-key users, the --betas interleaved-thinking flag is often required for the latest reasoning models.
+| Command | Purpose | Implementation |
+|---------|---------|----------------|
+| `/compact` | Summarize context, prune history | Sprint 14 |
+| `/review` | Request code review | Sprint 14 |
+| `/context` | Context usage gauge | Sprint 14 |
+| `/loop` | Start autonomous loop | Sprint 13 |
+| `/spawn` | Spawn sub-agent | Sprint 15 |
+| `/checkpoint` | Create named snapshot | Sprint 18 |
+| `/template` | Insert loop template | Sprint 13 |
 
-5. Multi-Agent Conflict Guardrails
-To satisfy Rule 5 (Preserve existing functionality) in a multi-agent environment:
+### 5.3 Thinking Levels
 
---disallowedTools: When spawning a "The Tester" subagent, you should use this flag to explicitly block its ability to Write or Edit source code, ensuring it only generates test files.
+**Graduated Levels**: `think` < `think hard` < `think harder` < `ultrathink`
 
---allowedTools: Conversely, use this to pre-approve specific tools for specialized workers, reducing the overhead of "Brave Mode" while maintaining tight security.
+**Implementation**: Parse from model selector or prompt prefix, map to `--think` flag
+
+---
+
+## 6. UI/UX Specifications
+
+### 6.1 Workforce Sidebar Tab
+
+**Design**: Nexus minimalist aesthetic
+- Monochromatic cards (#0a0a0a base, #3b82f6 accent)
+- Agent ID, persona icon, status badge
+- Real-time activity string
+- Context scoping badge
+- Resource sparklines
+
+### 6.2 Multi-Process Terminal Grid
+
+**Layout**: Tabbed or grid view
+- Auto-focus on agent card click
+- Brave Mode amber glow (#f59e0b)
+- "Halt All" kill switch (red button)
+
+### 6.3 Loop Indicator
+
+**Design**: Blue accent (vs red for self-healing)
+- Progress bar
+- Iteration count badge
+- Promise display
+- Cancel button
+
+### 6.4 Delegation Proposal Card
+
+**Content**:
+- Target agent (model + persona)
+- Scope (files to modify)
+- Task description
+- Approve/Reject buttons
+
+### 6.5 File Locking Visualization
+
+**File Tree**: Lock icon on files being edited
+- Hover shows Agent ID
+- Prevents user edits to locked files
+
+### 6.6 Inline Diff Preview
+
+**Monaco Diff View**: Before applying changes
+- Accept/Reject/Edit buttons
+- Side-by-side or unified diff
+
+### 6.7 Completion Reports
+
+**Agent Card Transform**: "Report" state on completion
+- Summary of changes
+- Review Changes button (inline diff)
+- Revert Agent button (rollback)
+
+---
+
+## 7. Safety & Guardrails
+
+### 7.1 File Locking
+
+**Mechanism**: `FileService` tracks locked files
+```typescript
+private lockedFiles: Map<string, string>; // path -> agentId
+
+public lockFile(path: string, agentId: string): boolean {
+  if (this.lockedFiles.has(path)) return false;
+  this.lockedFiles.set(path, agentId);
+  return true;
+}
+```
+
+### 7.2 Recursive Spawning Limit
+
+**Rule**: Sub-agents cannot spawn their own sub-agents
+
+**Enforcement**: Check agent depth before allowing `/spawn`
+
+### 7.3 Workforce Kill Switch
+
+**UI**: Red "Halt All" button in terminal header
+
+**Action**: `CLIManager.killAll()` terminates all pty processes
+
+### 7.4 Loop Safety
+
+**Max Iterations**: Default 20, configurable
+
+**Cancel Button**: User can interrupt at any time
+
+**Delay**: 1-second pause between iterations
+
+### 7.5 Security Boundaries
+
+**Modal**: Interrupt for external path access
+- Clear message: "Agent [ID] requesting [path]"
+- Allow/Deny buttons
+
+**Audit Log**: `~/.sumerian/audit.log`
+- All agent commands logged
+- Viewer in UI
+
+---
+
+## 8. Advanced Features
+
+### 8.1 Named Checkpoints
+
+**Command**: `/checkpoint "before auth refactor"`
+
+**UI**: Checkpoint timeline in sidebar
+- Visual timeline of labeled snapshots
+- One-click rollback
+
+### 8.2 Agent Memory
+
+**File**: `.sumerian/memory.md`
+- Agent-writable persistent context
+- Survives session clears
+- Injected like lore
+
+**Use Cases**:
+- Decisions made
+- Patterns discovered
+- User preferences learned
+
+### 8.3 Task Queue
+
+**UI**: Task Queue Panel
+- Queue up tasks for sequential processing
+- Drag-drop reordering
+- Auto-start next on completion
+
+**Overnight Batch Mode**:
+- Queue multiple loop tasks
+- Run sequentially while user away
+- Morning summary
+
+---
+
+## 9. Success Metrics
+
+| Metric | Target | Measurement |
+|--------|--------|-------------|
+| **Parallelism** | 3+ concurrent agents | No UI lag |
+| **Token Efficiency** | 30% reduction | Conductor context size |
+| **Throughput** | 50% reduction | Time-to-complete multi-file features |
+| **Loop Completion** | >80% | Within max iterations |
+| **Resource Usage** | <512MB per agent | Memory monitoring |
+
+---
+
+## 10. Implementation Roadmap
+
+See individual sprint documents in `docs/sprints/`:
+
+| Sprint | Name | Duration | Status |
+|--------|------|----------|--------|
+| **13** | Loop Mode (Ralph Wiggum) | 1 week | Pending |
+| **14** | CLI Enhancements | 1 week | Pending |
+| **15** | Multi-Agent Core | 2 weeks | Pending |
+| **16** | Workforce UI | 1 week | Pending |
+| **17** | Orchestration UX | 1 week | Pending |
+| **18** | Advanced Features | 1 week | Pending |
+
+**Total Duration**: ~8 weeks
+
+---
+
+*Last Updated: January 2026*

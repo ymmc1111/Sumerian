@@ -5,7 +5,7 @@ export interface SumerianAPI {
     cli: {
         send: (content: string, braveMode: boolean) => Promise<void>;
         setBraveMode: (enabled: boolean) => Promise<boolean>;
-        getStatus: () => Promise<any>;
+        getStatus: () => Promise<string>;
         onOutput: (callback: (output: any) => void) => () => void;
         onStatusChange: (callback: (status: any) => void) => () => void;
         onExit: (callback: (info: any) => void) => () => void;
@@ -14,9 +14,24 @@ export interface SumerianAPI {
         onToolAction: (callback: (data: { type: 'use' | 'result'; name?: string; id: string; input?: Record<string, unknown>; content?: string; isError?: boolean }) => void) => () => void;
         onAgentStatus: (callback: (data: { status: string; result?: string; usage?: { input: number; output: number }; type?: string; message?: string }) => void) => () => void;
         setModel: (model: string) => Promise<boolean>;
+        setMaxBudgetUsd: (budget: number | null) => Promise<boolean>;
+        setMcpConfigPath: (path: string | null) => Promise<boolean>;
+        setAdditionalDirs: (dirs: string[]) => Promise<boolean>;
+        setAllowedTools: (tools: string[]) => Promise<boolean>;
+        setDisallowedTools: (tools: string[]) => Promise<boolean>;
         listModels: () => Promise<any[]>;
         refreshModels: () => Promise<boolean>;
         onModelsUpdated: (callback: (models: any[]) => void) => () => void;
+        startLoop: (prompt: string, completionPromise: string, maxIterations: number) => Promise<boolean>;
+        cancelLoop: () => Promise<boolean>;
+        onLoopIteration: (callback: (data: { iteration: number; max: number }) => void) => () => void;
+        onLoopComplete: (callback: (data: { reason: 'promise' | 'max_iterations' | 'cancelled' }) => void) => () => void;
+        spawnAgent: (persona: any, task: string, workingDir?: string) => Promise<string>;
+        terminateAgent: (agentId: string) => Promise<boolean>;
+        getAgent: (agentId: string) => Promise<any>;
+        getAllAgents: () => Promise<any[]>;
+        killAll: () => Promise<boolean>;
+        onResourceUpdate: (callback: (data: { agentId: string; cpu: number; memory: number }) => void) => () => void;
     };
     session: {
         getStatus: () => Promise<any>;
@@ -32,6 +47,13 @@ export interface SumerianAPI {
         select: () => Promise<string | null>;
         getRecent: () => Promise<string[]>;
         clearRecent: () => Promise<boolean>;
+        listRecent: (limit?: number) => Promise<any[]>;
+        get: (path: string) => Promise<any | null>;
+        remove: (path: string) => Promise<boolean>;
+        updateConfig: (path: string, config: any) => Promise<boolean>;
+        loadConfig: (path: string) => Promise<any | null>;
+        saveConfig: (path: string, config: any) => Promise<boolean>;
+        updateSession: (path: string, sessionId: string) => Promise<boolean>;
     };
     terminal: {
         create: (id: string, cwd: string) => Promise<boolean>;
@@ -42,16 +64,26 @@ export interface SumerianAPI {
     };
     files: {
         read: (path: string) => Promise<string>;
-        write: (path: string, content: string) => Promise<boolean>;
+        write: (path: string, content: string) => Promise<void>;
         list: (path: string) => Promise<any[]>;
         delete: (path: string) => Promise<boolean>;
         undo: () => Promise<boolean>;
-        watch: (path: string) => Promise<boolean>;
+        watch: (path: string) => Promise<void>;
         onChanged: (callback: (event: any) => void) => () => void;
         saveImage: (path: string, base64Data: string) => Promise<string>;
+        createCheckpoint: (label: string, files: string[]) => Promise<string>;
+        listCheckpoints: () => Promise<any[]>;
+        rollbackToCheckpoint: (checkpointId: string) => Promise<void>;
+        deleteCheckpoint: (checkpointId: string) => Promise<void>;
     };
     lore: {
         list: (projectPath: string) => Promise<any[]>;
+    };
+    memory: {
+        read: (projectPath: string) => Promise<string>;
+        write: (projectPath: string, content: string) => Promise<boolean>;
+        append: (projectPath: string, entry: string) => Promise<boolean>;
+        clear: (projectPath: string) => Promise<boolean>;
     };
     preferences: {
         get: () => Promise<any>;
@@ -60,10 +92,10 @@ export interface SumerianAPI {
     window: {
         detachPanel: (panelType: string, bounds?: { x: number; y: number; width: number; height: number }) => Promise<string>;
         reattachPanel: (windowId: string) => Promise<boolean>;
-        getDetachedPanels: () => Promise<any[]>;
-        focus: (windowId: string) => Promise<void>;
-        moveToScreen: (windowId: string, screenIndex: number) => Promise<void>;
-        getScreens: () => Promise<any[]>;
+        getDetachedPanels: () => Promise<Array<{ id: string; panelType: string }>>;
+        focus: (windowId: string) => Promise<boolean>;
+        moveToScreen: (windowId: string, screenIndex: number) => Promise<boolean>;
+        getScreens: () => Promise<Array<{ index: number; label: string; bounds: { x: number; y: number; width: number; height: number } }>>;
         onPanelClosed: (callback: (data: { id: string; panelType: string }) => void) => () => void;
     };
     state: {

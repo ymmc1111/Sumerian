@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { AppState, FileNode, OpenFile, AgentStreamStatus, ToolAction } from './types';
+import { AppState, FileNode, OpenFile, AgentStreamStatus, ToolAction, AgentInstance, Task } from './types';
 
 export const useAppStore = create<AppState>()(
     persist(
@@ -13,6 +13,9 @@ export const useAppStore = create<AppState>()(
                 activePanel: 'editor' as const,
                 isCommandPaletteOpen: false,
                 isShortcutsHelpOpen: false,
+                isProjectSwitcherOpen: false,
+                isDocsViewerOpen: false,
+                activeDocId: undefined,
                 terminals: [{ id: 'default', name: 'bash' }],
                 activeTerminalId: 'default',
                 settings: {
@@ -56,6 +59,17 @@ export const useAppStore = create<AppState>()(
                 usage: null as { input: number; output: number } | null,
                 mode: 'code' as const,
                 availableModels: [],
+                loopActive: false,
+                loopConfig: null,
+                loopIteration: 0,
+                autopilotMode: false,
+            },
+            workforce: {
+                activeAgents: new Map<string, AgentInstance>(),
+                taskQueue: [] as Task[],
+                pendingProposal: null,
+                queuedTasks: [],
+                queueActive: false,
             },
 
 
@@ -100,6 +114,12 @@ export const useAppStore = create<AppState>()(
                 set((state) => ({ ui: { ...state.ui, isCommandPaletteOpen: !state.ui.isCommandPaletteOpen } })),
             toggleShortcutsHelp: () =>
                 set((state) => ({ ui: { ...state.ui, isShortcutsHelpOpen: !state.ui.isShortcutsHelpOpen } })),
+            toggleProjectSwitcher: () =>
+                set((state) => ({ ui: { ...state.ui, isProjectSwitcherOpen: !state.ui.isProjectSwitcherOpen } })),
+            toggleDocsViewer: () =>
+                set((state) => ({ ui: { ...state.ui, isDocsViewerOpen: !state.ui.isDocsViewerOpen } })),
+            openDocsWithTopic: (docId: string) =>
+                set((state) => ({ ui: { ...state.ui, isDocsViewerOpen: true, activeDocId: docId } })),
             updateSettings: (settings) =>
                 set((state) => ({ ui: { ...state.ui, settings: { ...state.ui.settings, ...settings } } })),
             toggleSettings: () =>
@@ -107,6 +127,17 @@ export const useAppStore = create<AppState>()(
 
             // Project Actions
             setRootPath: async (path) => {
+                // Save current session before switching projects
+                const currentPath = get().project.rootPath;
+                if (currentPath && currentPath !== path) {
+                    await get().saveSession();
+                    // Update project with current session ID
+                    const currentSessionId = get().agent.sessionId;
+                    if (currentSessionId) {
+                        await window.sumerian.project.updateSession(currentPath, currentSessionId);
+                    }
+                }
+
                 set((state) => ({ project: { ...state.project, rootPath: path } }));
                 if (path) {
                     await window.sumerian.project.open(path);
@@ -114,6 +145,43 @@ export const useAppStore = create<AppState>()(
                     get().refreshLore();
                     get().refreshModels();
                     window.sumerian.files.watch(path);
+                    
+                    // Restore last session for this project
+                    try {
+                        const projectEntry = await window.sumerian.project.get(path);
+                        if (projectEntry?.lastSessionId) {
+                            console.log('[setRootPath] Restoring last session:', projectEntry.lastSessionId);
+                            await get().loadSession(projectEntry.lastSessionId);
+                        } else {
+                            // No previous session, get latest from SessionManager
+                            const latestSessionId = await window.sumerian.session.getLatestId();
+                            if (latestSessionId) {
+                                console.log('[setRootPath] Restoring latest session:', latestSessionId);
+                                await get().loadSession(latestSessionId);
+                            } else {
+                                // Fresh start - create new session ID
+                                console.log('[setRootPath] Starting fresh session');
+                                set((state) => ({
+                                    agent: {
+                                        ...state.agent,
+                                        sessionId: crypto.randomUUID(),
+                                        messages: []
+                                    }
+                                }));
+                            }
+                        }
+                    } catch (error) {
+                        console.error('[setRootPath] Failed to restore session:', error);
+                        // Fallback to new session
+                        set((state) => ({
+                            agent: {
+                                ...state.agent,
+                                sessionId: crypto.randomUUID(),
+                                messages: []
+                            }
+                        }));
+                    }
+                    
                     // Sync to shared state
                     window.sumerian.state.set('project', { rootPath: path, fileTree: get().project.fileTree });
                 }
@@ -566,6 +634,13 @@ export const useAppStore = create<AppState>()(
                 await window.sumerian.cli.setBraveMode(enabled);
                 window.sumerian.state.set('agent', { mode: get().agent.mode, braveMode: enabled, model: get().agent.model });
             },
+            setAutopilotMode: (enabled) => {
+                set((state) => ({ agent: { ...state.agent, autopilotMode: enabled } }));
+                // Broadcast to detached windows
+                if (typeof window !== 'undefined' && window.sumerian?.state?.broadcast) {
+                    window.sumerian.state.broadcast('agent:autopilot', { enabled });
+                }
+            },
             setModel: (model) => {
                 set((state) => ({ agent: { ...state.agent, model } }));
                 window.sumerian.cli.setModel(model);
@@ -681,6 +756,32 @@ export const useAppStore = create<AppState>()(
 
             clearTerminalError: () => {
                 set((state) => ({ agent: { ...state.agent, lastTerminalError: null } }));
+            },
+
+            startLoop: async (prompt: string, completionPromise: string, maxIterations: number) => {
+                set((state) => ({
+                    agent: {
+                        ...state.agent,
+                        loopActive: true,
+                        loopConfig: { prompt, completionPromise, maxIterations },
+                        loopIteration: 0
+                    }
+                }));
+                
+                await window.sumerian.cli.startLoop(prompt, completionPromise, maxIterations);
+            },
+
+            cancelLoop: async () => {
+                set((state) => ({
+                    agent: {
+                        ...state.agent,
+                        loopActive: false,
+                        loopConfig: null,
+                        loopIteration: 0
+                    }
+                }));
+                
+                await window.sumerian.cli.cancelLoop();
             },
 
             saveSession: async () => {
@@ -968,6 +1069,32 @@ export const useAppStore = create<AppState>()(
                         get().setAgentStatus(status);
                     });
 
+                    // Listen for loop events
+                    window.sumerian.cli.onLoopIteration(({ iteration, max }) => {
+                        set((state) => ({
+                            agent: { ...state.agent, loopIteration: iteration }
+                        }));
+                    });
+
+                    window.sumerian.cli.onLoopComplete(({ reason }) => {
+                        const message = reason === 'promise' 
+                            ? '✅ Loop completed: Promise detected!'
+                            : reason === 'max_iterations'
+                            ? '⚠️ Loop stopped: Max iterations reached'
+                            : '🛑 Loop cancelled by user';
+                        
+                        get().addAgentMessage(message);
+                        
+                        set((state) => ({
+                            agent: {
+                                ...state.agent,
+                                loopActive: false,
+                                loopConfig: null,
+                                loopIteration: 0
+                            }
+                        }));
+                    });
+
                     // Listen for state updates from main process
                     window.sumerian.state.onUpdate(({ key, data }) => {
                         if (key === 'editor') {
@@ -988,6 +1115,277 @@ export const useAppStore = create<AppState>()(
                 } catch (error) {
                     console.error('Error loading recent projects:', error);
                 }
+            },
+
+            // Workforce Actions
+            spawnAgent: async (persona, task, workingDir) => {
+                try {
+                    const agentId = await window.sumerian.cli.spawnAgent(persona, task, workingDir);
+                    
+                    const agentInstance: AgentInstance = {
+                        id: agentId,
+                        persona,
+                        status: 'active',
+                        task,
+                        startTime: Date.now(),
+                        lockedFiles: [],
+                        messageHistory: []
+                    };
+                    
+                    set((state) => {
+                        const newActiveAgents = new Map(state.workforce.activeAgents);
+                        newActiveAgents.set(agentId, agentInstance);
+                        return {
+                            workforce: {
+                                ...state.workforce,
+                                activeAgents: newActiveAgents
+                            }
+                        };
+                    });
+                    
+                    return agentId;
+                } catch (error) {
+                    console.error('Failed to spawn agent:', error);
+                    throw error;
+                }
+            },
+
+            terminateAgent: async (agentId) => {
+                try {
+                    await window.sumerian.cli.terminateAgent(agentId);
+                    
+                    set((state) => {
+                        const newActiveAgents = new Map(state.workforce.activeAgents);
+                        newActiveAgents.delete(agentId);
+                        return {
+                            workforce: {
+                                ...state.workforce,
+                                activeAgents: newActiveAgents
+                            }
+                        };
+                    });
+                } catch (error) {
+                    console.error('Failed to terminate agent:', error);
+                    throw error;
+                }
+            },
+
+            getAgent: (agentId) => {
+                return get().workforce.activeAgents.get(agentId) || null;
+            },
+
+            getAllAgents: () => {
+                return Array.from(get().workforce.activeAgents.values());
+            },
+
+            updateAgentResources: (agentId, cpu, memory) => {
+                set((state) => {
+                    const agent = state.workforce.activeAgents.get(agentId);
+                    if (!agent) return state;
+
+                    const maxHistoryLength = 30; // Keep last 30 data points (1 minute at 2s intervals)
+                    const cpuHistory = [...(agent.resources?.cpuHistory || []), cpu].slice(-maxHistoryLength);
+                    const memoryHistory = [...(agent.resources?.memoryHistory || []), memory].slice(-maxHistoryLength);
+
+                    const updatedAgent: AgentInstance = {
+                        ...agent,
+                        resources: {
+                            cpuHistory,
+                            memoryHistory,
+                            lastUpdate: Date.now()
+                        }
+                    };
+
+                    const newActiveAgents = new Map(state.workforce.activeAgents);
+                    newActiveAgents.set(agentId, updatedAgent);
+
+                    return {
+                        workforce: {
+                            ...state.workforce,
+                            activeAgents: newActiveAgents
+                        }
+                    };
+                });
+            },
+
+            queueTask: (task) => {
+                set((state) => ({
+                    workforce: {
+                        ...state.workforce,
+                        taskQueue: [...state.workforce.taskQueue, task]
+                    }
+                }));
+            },
+
+            dequeueTask: (taskId) => {
+                set((state) => ({
+                    workforce: {
+                        ...state.workforce,
+                        taskQueue: state.workforce.taskQueue.filter(t => t.id !== taskId)
+                    }
+                }));
+            },
+
+            proposeDelegation: (proposal) => {
+                set((state) => ({
+                    workforce: {
+                        ...state.workforce,
+                        pendingProposal: proposal
+                    }
+                }));
+            },
+
+            approveDelegation: async () => {
+                const { pendingProposal } = get().workforce;
+                if (!pendingProposal) return;
+
+                try {
+                    await get().spawnAgent(
+                        pendingProposal.persona,
+                        pendingProposal.task,
+                        get().project.rootPath || undefined
+                    );
+                    
+                    set((state) => ({
+                        workforce: {
+                            ...state.workforce,
+                            pendingProposal: null
+                        }
+                    }));
+                } catch (error) {
+                    console.error('Failed to approve delegation:', error);
+                }
+            },
+
+            rejectDelegation: () => {
+                set((state) => ({
+                    workforce: {
+                        ...state.workforce,
+                        pendingProposal: null
+                    }
+                }));
+            },
+
+            revertAgent: async (agentId: string) => {
+                const agent = get().workforce.activeAgents.get(agentId);
+                if (!agent || !agent.completionReport) {
+                    console.warn('Cannot revert: agent not found or no completion report');
+                    return false;
+                }
+
+                try {
+                    const filesModified = agent.completionReport.filesModified;
+                    let allSuccess = true;
+
+                    for (const filePath of filesModified) {
+                        const success = await window.sumerian.files.undo();
+                        if (!success) {
+                            console.warn(`Failed to revert file: ${filePath}`);
+                            allSuccess = false;
+                        }
+                    }
+
+                    if (allSuccess) {
+                        await get().refreshFileTree();
+                    }
+
+                    return allSuccess;
+                } catch (error) {
+                    console.error('Failed to revert agent changes:', error);
+                    return false;
+                }
+            },
+
+            // Task Queue Actions
+            addTaskToQueue: (task) => {
+                set((state) => ({
+                    workforce: {
+                        ...state.workforce,
+                        queuedTasks: [...state.workforce.queuedTasks, task]
+                    }
+                }));
+            },
+
+            removeTaskFromQueue: (taskId) => {
+                set((state) => ({
+                    workforce: {
+                        ...state.workforce,
+                        queuedTasks: state.workforce.queuedTasks.filter(t => t.id !== taskId)
+                    }
+                }));
+            },
+
+            reorderTasks: (fromIndex, toIndex) => {
+                set((state) => {
+                    const tasks = [...state.workforce.queuedTasks];
+                    const [removed] = tasks.splice(fromIndex, 1);
+                    tasks.splice(toIndex, 0, removed);
+                    return {
+                        workforce: {
+                            ...state.workforce,
+                            queuedTasks: tasks
+                        }
+                    };
+                });
+            },
+
+            processNextTask: async () => {
+                const { queuedTasks } = get().workforce;
+                const nextTask = queuedTasks.find(t => t.status === 'pending');
+                if (!nextTask) {
+                    get().setQueueActive(false);
+                    return;
+                }
+
+                // Mark as active
+                get().updateTaskStatus(nextTask.id, 'active');
+
+                try {
+                    if (nextTask.type === 'message') {
+                        await get().sendMessage(nextTask.content);
+                    } else if (nextTask.type === 'loop') {
+                        const { prompt, promise, maxIterations } = nextTask.config;
+                        await get().startLoop(prompt, promise, maxIterations);
+                    } else if (nextTask.type === 'spawn') {
+                        const { persona, task, workingDir } = nextTask.config;
+                        await get().spawnAgent(persona, task, workingDir);
+                    }
+
+                    get().updateTaskStatus(nextTask.id, 'complete');
+
+                    // Process next task after delay
+                    if (get().workforce.queueActive) {
+                        setTimeout(() => get().processNextTask(), 2000);
+                    }
+                } catch (error) {
+                    console.error('Task execution failed:', error);
+                    get().updateTaskStatus(nextTask.id, 'error');
+                    get().setQueueActive(false);
+                }
+            },
+
+            setQueueActive: (active) => {
+                set((state) => ({
+                    workforce: {
+                        ...state.workforce,
+                        queueActive: active
+                    }
+                }));
+
+                if (active) {
+                    get().processNextTask();
+                }
+            },
+
+            updateTaskStatus: (taskId, status) => {
+                set((state) => ({
+                    workforce: {
+                        ...state.workforce,
+                        queuedTasks: state.workforce.queuedTasks.map(t =>
+                            t.id === taskId ? { ...t, status } : t
+                        )
+                    }
+                }));
             }
         }),
 
