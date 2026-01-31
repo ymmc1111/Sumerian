@@ -53,7 +53,10 @@ const TerminalInstance: React.FC<TerminalInstanceProps> = ({ id, isActive }) => 
     };
 
     useEffect(() => {
-        if (!terminalRef.current) return;
+        if (!terminalRef.current || !window.sumerian?.terminal) {
+            console.warn('Terminal not initialized: container or API not available');
+            return;
+        }
 
         const term = new XTerm({
             theme: nexusTerminalTheme,
@@ -70,18 +73,40 @@ const TerminalInstance: React.FC<TerminalInstanceProps> = ({ id, isActive }) => 
         term.loadAddon(fitAddon);
         term.loadAddon(new WebLinksAddon());
 
-        term.open(terminalRef.current);
-        // Delay initial fit to ensure container has dimensions
+        xtermRef.current = term;
+
+        // Use requestAnimationFrame to ensure DOM is ready, then open terminal
         requestAnimationFrame(() => {
+            if (!terminalRef.current) return;
+            
             try {
-                fitAddon.fit();
+                term.open(terminalRef.current);
+                
+                // Fit after a short delay to ensure terminal has rendered
+                setTimeout(() => {
+                    try {
+                        if (terminalRef.current && terminalRef.current.offsetWidth > 0) {
+                            fitAddon.fit();
+                        }
+                    } catch (e) {
+                        console.warn('Initial fit failed:', e);
+                    }
+                }, 100);
             } catch (e) {
-                // Terminal not ready yet, will fit on resize
+                console.error('Failed to open terminal:', e);
+                // Retry once after a delay if initial open fails
+                setTimeout(() => {
+                    try {
+                        if (terminalRef.current) {
+                            term.open(terminalRef.current);
+                            setTimeout(() => fitAddon.fit(), 100);
+                        }
+                    } catch (retryError) {
+                        console.error('Terminal initialization failed after retry:', retryError);
+                    }
+                }, 200);
             }
         });
-
-
-        xtermRef.current = term;
 
         // Initialize terminal via IPC
         window.sumerian.terminal.create(id, project.rootPath || './');
@@ -103,10 +128,28 @@ const TerminalInstance: React.FC<TerminalInstanceProps> = ({ id, isActive }) => 
 
         window.addEventListener('resize', resizeHandler);
 
+        // Add ResizeObserver to detect panel height changes
+        const resizeObserver = new ResizeObserver(() => {
+            requestAnimationFrame(() => {
+                try {
+                    fitAddon.fit();
+                    if (term.cols && term.rows) {
+                        window.sumerian.terminal.resize(id, term.cols, term.rows);
+                    }
+                } catch (e) {
+                    // Terminal not ready yet
+                }
+            });
+        });
+
+        if (terminalRef.current) {
+            resizeObserver.observe(terminalRef.current);
+        }
+
         // Listen for CLI output to mirror it
         let cleanupCLI = () => { };
 
-        if (id === 'default' || id === 'mirror') {
+        if ((id === 'default' || id === 'mirror') && window.sumerian?.cli) {
             if (terminalMirroring === 'raw') {
                 cleanupCLI = window.sumerian.cli.onOutput((output) => {
                     term.write(`\r\n\x1b[36m[agent]\x1b[0m ${output.content}`);
@@ -138,6 +181,7 @@ const TerminalInstance: React.FC<TerminalInstanceProps> = ({ id, isActive }) => 
             cleanupData();
             cleanupCLI();
             window.removeEventListener('resize', resizeHandler);
+            resizeObserver.disconnect();
             term.dispose();
         };
     }, [id, terminalMirroring]); // Now terminalMirroring is in the dependency array, so the effect will re-run if it changes.
@@ -191,8 +235,8 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ slotId = 'D' }) => {
                 panelType="terminal"
                 slotId={slotId}
                 icon={<Terminal className="w-4 h-4" />}
-                actions={<TerminalTabs />}
             />
+            <TerminalTabs />
             <div className="flex-1 overflow-hidden p-2">
                 {ui.terminals.map((term) => (
                     <TerminalInstance

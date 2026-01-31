@@ -12,7 +12,7 @@ import SessionList from '../components/SessionList';
 import TokenUsageDisplay from '../components/TokenUsageDisplay';
 import PanelHeader from '../components/PanelHeader';
 import ModelSelector from '../components/ModelSelector';
-import { Trash2, RotateCcw, Book, Bot, History } from 'lucide-react';
+import { Trash2, RotateCcw, Book, Bot, History, Plus } from 'lucide-react';
 
 interface AgentPanelProps {
     slotId?: PanelSlotId;
@@ -71,25 +71,18 @@ const AgentPanel: React.FC<AgentPanelProps> = ({ slotId = 'C' }) => {
                             </div>
                         )}
                         <button
+                            onClick={clearHistory}
+                            className="icon-btn"
+                            title="New Chat"
+                        >
+                            <Plus className="w-4 h-4" />
+                        </button>
+                        <button
                             onClick={() => setShowSessions(true)}
-                            className="p-1.5 rounded-lg hover:bg-nexus-bg-tertiary text-nexus-fg-muted hover:text-nexus-fg-primary transition-all active:scale-95"
+                            className="icon-btn"
                             title="Conversation History"
                         >
-                            <History className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                            onClick={handleRollback}
-                            className="icon-btn"
-                            title="Rollback Last Agent Action"
-                        >
-                            <RotateCcw className="w-4 h-4" />
-                        </button>
-                        <button
-                            onClick={clearHistory}
-                            className="icon-btn hover:text-red-400"
-                            title="Clear History"
-                        >
-                            <Trash2 className="w-4 h-4" />
+                            <History className="w-4 h-4" />
                         </button>
                         <div className="divider-v" />
                         <BraveModeToggle />

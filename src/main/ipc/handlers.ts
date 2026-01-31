@@ -175,8 +175,14 @@ export function setupHandlers() {
     });
 
     ipcMain.handle('session:save', async (_event, data: SessionData) => {
-        if (!sessionManager) return false;
+        console.log('[IPC] session:save called, sessionManager exists:', !!sessionManager);
+        console.log('[IPC] session:save data:', { id: data.id, messageCount: data.messages?.length });
+        if (!sessionManager) {
+            console.log('[IPC] session:save failed - no sessionManager');
+            return false;
+        }
         await sessionManager.saveSession(data);
+        console.log('[IPC] session:save completed');
         return true;
     });
 
@@ -191,8 +197,14 @@ export function setupHandlers() {
     });
 
     ipcMain.handle('session:list', async () => {
-        if (!sessionManager) return [];
-        return await sessionManager.listSessions();
+        console.log('[IPC] session:list called, sessionManager exists:', !!sessionManager);
+        if (!sessionManager) {
+            console.log('[IPC] session:list returning empty - no sessionManager');
+            return [];
+        }
+        const sessions = await sessionManager.listSessions();
+        console.log('[IPC] session:list found', sessions.length, 'sessions');
+        return sessions;
     });
 
     ipcMain.handle('session:delete', async (_event, id: string) => {

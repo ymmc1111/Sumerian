@@ -2,7 +2,6 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { AppState, FileNode, OpenFile, AgentStreamStatus, ToolAction } from './types';
 
-
 export const useAppStore = create<AppState>()(
     persist(
         (set, get): AppState => ({
@@ -32,6 +31,9 @@ export const useAppStore = create<AppState>()(
             editor: {
                 openFiles: [] as OpenFile[],
                 activeFileId: null as string | null,
+                groups: [{ id: 'default', openFiles: [], activeFileId: null }],
+                activeGroupId: 'default',
+                layout: 'single' as const,
             },
             agent: {
                 status: 'disconnected',
@@ -121,12 +123,14 @@ export const useAppStore = create<AppState>()(
                 set((state) => ({ project: { ...state.project, fileTree: tree } })),
             refreshFileTree: async () => {
                 const rootPath = get().project.rootPath;
-                if (!rootPath) return;
+                if (!rootPath || !window.sumerian?.files) return;
                 try {
                     const tree = await window.sumerian.files.list(rootPath);
                     set((state) => ({ project: { ...state.project, fileTree: tree } }));
                     // Sync to shared state
-                    window.sumerian.state.set('project', { rootPath, fileTree: tree });
+                    if (window.sumerian?.state) {
+                        window.sumerian.state.set('project', { rootPath, fileTree: tree });
+                    }
                 } catch (error) {
                     console.error('Failed to refresh file tree:', error);
                 }
@@ -144,13 +148,48 @@ export const useAppStore = create<AppState>()(
 
             // Editor Actions
             openFile: async (path) => {
-                const { openFiles } = get().editor;
+                if (!window.sumerian?.files) {
+                    console.error('Cannot open file: window.sumerian.files not available');
+                    return;
+                }
+
+                const { openFiles, groups, activeGroupId } = get().editor;
                 const existingFile = openFiles.find((f) => f.path === path);
 
                 if (existingFile) {
-                    set((state) => ({ editor: { ...state.editor, activeFileId: existingFile.id } }));
+                    set((state) => {
+                        const updatedGroups = state.editor.groups.map(g => {
+                            if (g.id === activeGroupId) {
+                                const fileInGroup = g.openFiles.find(f => f.id === existingFile.id);
+                                if (!fileInGroup) {
+                                    return {
+                                        ...g,
+                                        openFiles: [...g.openFiles, existingFile],
+                                        activeFileId: existingFile.id
+                                    };
+                                }
+                                return { ...g, activeFileId: existingFile.id };
+                            }
+                            return g;
+                        });
+                        return {
+                            editor: {
+                                ...state.editor,
+                                activeFileId: existingFile.id,
+                                groups: updatedGroups
+                            }
+                        };
+                    });
                     // Sync to shared state
-                    window.sumerian.state.set('editor', { activeFileId: existingFile.id, openFiles: get().editor.openFiles });
+                    if (window.sumerian?.state) {
+                        const editorState = get().editor;
+                        window.sumerian.state.set('editor', { 
+                            activeFileId: editorState.activeFileId, 
+                            openFiles: editorState.openFiles,
+                            groups: editorState.groups,
+                            activeGroupId: editorState.activeGroupId
+                        });
+                    }
                     return;
                 }
 
@@ -167,15 +206,36 @@ export const useAppStore = create<AppState>()(
                     };
 
                     const newOpenFiles = [...get().editor.openFiles, newFile];
-                    set((state) => ({
-                        editor: {
-                            ...state.editor,
-                            openFiles: newOpenFiles,
-                            activeFileId: newFile.id,
-                        },
-                    }));
+                    set((state) => {
+                        const updatedGroups = state.editor.groups.map(g => {
+                            if (g.id === activeGroupId) {
+                                return {
+                                    ...g,
+                                    openFiles: [...g.openFiles, newFile],
+                                    activeFileId: newFile.id
+                                };
+                            }
+                            return g;
+                        });
+                        return {
+                            editor: {
+                                ...state.editor,
+                                openFiles: newOpenFiles,
+                                activeFileId: newFile.id,
+                                groups: updatedGroups
+                            }
+                        };
+                    });
                     // Sync to shared state
-                    window.sumerian.state.set('editor', { activeFileId: newFile.id, openFiles: newOpenFiles });
+                    if (window.sumerian?.state) {
+                        const editorState = get().editor;
+                        window.sumerian.state.set('editor', { 
+                            activeFileId: editorState.activeFileId, 
+                            openFiles: editorState.openFiles,
+                            groups: editorState.groups,
+                            activeGroupId: editorState.activeGroupId
+                        });
+                    }
                 } catch (error) {
                     console.error('Failed to open file:', error);
                 }
@@ -187,14 +247,58 @@ export const useAppStore = create<AppState>()(
                     if (activeFileId === id) {
                         activeFileId = openFiles.length > 0 ? openFiles[openFiles.length - 1].id : null;
                     }
-                    return { editor: { ...state.editor, openFiles, activeFileId } };
+                    
+                    // Also remove from all groups
+                    const updatedGroups = state.editor.groups.map(group => {
+                        const groupFiles = group.openFiles.filter(f => f.id !== id);
+                        let groupActiveFileId = group.activeFileId;
+                        if (groupActiveFileId === id) {
+                            groupActiveFileId = groupFiles.length > 0 ? groupFiles[groupFiles.length - 1].id : null;
+                        }
+                        return {
+                            ...group,
+                            openFiles: groupFiles,
+                            activeFileId: groupActiveFileId
+                        };
+                    });
+                    
+                    return { 
+                        editor: { 
+                            ...state.editor, 
+                            openFiles, 
+                            activeFileId,
+                            groups: updatedGroups
+                        } 
+                    };
                 });
+                
+                // Sync to shared state
+                if (window.sumerian?.state) {
+                    const editorState = get().editor;
+                    window.sumerian.state.set('editor', { 
+                        activeFileId: editorState.activeFileId, 
+                        openFiles: editorState.openFiles,
+                        groups: editorState.groups,
+                        activeGroupId: editorState.activeGroupId
+                    });
+                }
+                
+                // Immediate broadcast for file close
+                if (typeof window !== 'undefined' && window.sumerian?.state?.broadcast) {
+                    window.sumerian.state.broadcast('editor:close', { id });
+                }
             },
             setActiveFile: (id) => {
                 set((state) => ({ editor: { ...state.editor, activeFileId: id } }));
                 get().updateActiveFileContext(id);
                 // Sync to shared state
-                window.sumerian.state.set('editor', { activeFileId: id, openFiles: get().editor.openFiles });
+                const editorState = get().editor;
+                window.sumerian.state.set('editor', { 
+                    activeFileId: id, 
+                    openFiles: editorState.openFiles,
+                    groups: editorState.groups,
+                    activeGroupId: editorState.activeGroupId
+                });
             },
             setFileContent: (id, content) => {
                 set((state) => ({
@@ -205,6 +309,17 @@ export const useAppStore = create<AppState>()(
                         ),
                     },
                 }));
+                
+                // Debounced broadcast for high-frequency updates (typing)
+                if (typeof window !== 'undefined' && window.sumerian?.state?.broadcast) {
+                    const debounceKey = `file-content-${id}`;
+                    if ((window as any)[debounceKey]) {
+                        clearTimeout((window as any)[debounceKey]);
+                    }
+                    (window as any)[debounceKey] = setTimeout(() => {
+                        window.sumerian.state.broadcast('editor:content', { id, content });
+                    }, 500);
+                }
             },
             saveFile: async (id) => {
                 const file = get().editor.openFiles.find((f) => f.id === id);
@@ -220,9 +335,79 @@ export const useAppStore = create<AppState>()(
                             ),
                         },
                     }));
+                    
+                    // Immediate broadcast for file save
+                    if (typeof window !== 'undefined' && window.sumerian?.state?.broadcast) {
+                        window.sumerian.state.broadcast('editor:save', { id });
+                    }
                 } catch (error) {
                     console.error('Failed to save file:', error);
                 }
+            },
+
+            // Editor Group Actions
+            splitEditor: (direction) => {
+                const newGroupId = `group-${Date.now()}`;
+                const newLayout = direction === 'horizontal' ? 'split-horizontal' : 'split-vertical';
+                
+                set((state) => ({
+                    editor: {
+                        ...state.editor,
+                        groups: [...state.editor.groups, { id: newGroupId, openFiles: [], activeFileId: null }],
+                        activeGroupId: newGroupId,
+                        layout: newLayout,
+                    },
+                }));
+            },
+
+            closeEditorGroup: (groupId) => {
+                const { groups, activeGroupId } = get().editor;
+                
+                // Don't close if it's the only group
+                if (groups.length <= 1) return;
+                
+                const newGroups = groups.filter(g => g.id !== groupId);
+                const newActiveGroupId = activeGroupId === groupId ? newGroups[0].id : activeGroupId;
+                const newLayout = newGroups.length === 1 ? 'single' : get().editor.layout;
+                
+                set((state) => ({
+                    editor: {
+                        ...state.editor,
+                        groups: newGroups,
+                        activeGroupId: newActiveGroupId,
+                        layout: newLayout,
+                    },
+                }));
+            },
+
+            setActiveGroup: (groupId) => {
+                set((state) => ({
+                    editor: { ...state.editor, activeGroupId: groupId },
+                }));
+            },
+
+            moveFileToGroup: (fileId, targetGroupId) => {
+                const { groups, openFiles } = get().editor;
+                const file = openFiles.find(f => f.id === fileId);
+                if (!file) return;
+                
+                // Remove file from all groups
+                const updatedGroups = groups.map(group => ({
+                    ...group,
+                    openFiles: group.openFiles.filter(f => f.id !== fileId),
+                    activeFileId: group.activeFileId === fileId ? null : group.activeFileId,
+                }));
+                
+                // Add file to target group
+                const targetGroup = updatedGroups.find(g => g.id === targetGroupId);
+                if (targetGroup) {
+                    targetGroup.openFiles.push(file);
+                    targetGroup.activeFileId = file.id;
+                }
+                
+                set((state) => ({
+                    editor: { ...state.editor, groups: updatedGroups, activeGroupId: targetGroupId },
+                }));
             },
 
             // Agent Actions
@@ -286,6 +471,11 @@ export const useAppStore = create<AppState>()(
                 }));
                 get().saveSession();
 
+                // Broadcast message to detached windows
+                if (typeof window !== 'undefined' && window.sumerian?.state?.broadcast) {
+                    window.sumerian.state.broadcast('agent:message', userMessage);
+                }
+
                 try {
                     await window.sumerian.cli.send(finalContent, get().agent.braveMode);
                 } catch (error) {
@@ -307,6 +497,11 @@ export const useAppStore = create<AppState>()(
                     }
                 }));
                 get().saveSession();
+
+                // Broadcast message to detached windows
+                if (typeof window !== 'undefined' && window.sumerian?.state?.broadcast) {
+                    window.sumerian.state.broadcast('agent:message', agentMessage);
+                }
             },
             updateLastAgentMessage: (content) => {
                 set((state) => {
@@ -330,9 +525,24 @@ export const useAppStore = create<AppState>()(
                     return { agent: { ...state.agent, messages } };
                 });
                 get().saveSession();
+
+                // Broadcast streaming update to detached windows
+                if (typeof window !== 'undefined' && window.sumerian?.state?.broadcast) {
+                    const messages = get().agent.messages;
+                    const lastMessage = messages[messages.length - 1];
+                    if (lastMessage && lastMessage.role === 'agent') {
+                        window.sumerian.state.broadcast('agent:stream', { content: lastMessage.content });
+                    }
+                }
             },
-            setAgentStatus: (status) =>
-                set((state) => ({ agent: { ...state.agent, status } })),
+            setAgentStatus: (status) => {
+                set((state) => ({ agent: { ...state.agent, status } }));
+
+                // Broadcast status to detached windows
+                if (typeof window !== 'undefined' && window.sumerian?.state?.broadcast) {
+                    window.sumerian.state.broadcast('agent:status', { status });
+                }
+            },
             setBraveMode: (enabled) => {
                 set((state) => ({ agent: { ...state.agent, braveMode: enabled } }));
                 window.sumerian.state.set('agent', { mode: get().agent.mode, braveMode: get().agent.braveMode, model: get().agent.model });
@@ -366,8 +576,14 @@ export const useAppStore = create<AppState>()(
             },
             setAutoContextEnabled: (enabled) =>
                 set((state) => ({ agent: { ...state.agent, autoContextEnabled: enabled } })),
-            clearHistory: () =>
-                set((state) => ({ agent: { ...state.agent, messages: [] } })),
+            clearHistory: () => {
+                set((state) => ({ agent: { ...state.agent, messages: [] } }));
+                
+                // Broadcast clear to detached windows
+                if (typeof window !== 'undefined' && window.sumerian?.state?.broadcast) {
+                    window.sumerian.state.broadcast('agent:clear', {});
+                }
+            },
             refreshLore: async () => {
                 const rootPath = get().project.rootPath;
                 if (!rootPath) return;
@@ -450,14 +666,23 @@ export const useAppStore = create<AppState>()(
 
             saveSession: async () => {
                 const { agent } = get();
-                if (!agent.sessionId) return;
+                if (!agent.sessionId) {
+                    console.log('[saveSession] No sessionId, skipping save');
+                    return;
+                }
+                if (agent.messages.length === 0) {
+                    console.log('[saveSession] No messages, skipping save');
+                    return;
+                }
 
+                console.log('[saveSession] Saving session:', agent.sessionId, 'with', agent.messages.length, 'messages');
                 await window.sumerian.session.save({
                     id: agent.sessionId,
                     messages: agent.messages,
                     timestamp: Date.now(),
                     usage: agent.usage
                 });
+                console.log('[saveSession] Session saved successfully');
             },
 
             loadSession: async (id: string) => {
@@ -471,6 +696,15 @@ export const useAppStore = create<AppState>()(
                             usage: session.usage || null
                         }
                     }));
+
+                    // Broadcast loaded session to all windows
+                    if (typeof window !== 'undefined' && window.sumerian?.state?.broadcast) {
+                        window.sumerian.state.broadcast('agent:session-loaded', {
+                            sessionId: session.id,
+                            messages: session.messages,
+                            usage: session.usage || null
+                        });
+                    }
                 }
             },
 
@@ -499,61 +733,75 @@ export const useAppStore = create<AppState>()(
 
             // Store Initialization
             init: async () => {
-                // Load shared state from main process (for detached windows)
-                const sharedState = await window.sumerian.state.getAll();
-                if (sharedState?.editor) {
-                    set((state) => ({ editor: { ...state.editor, ...sharedState.editor } }));
-                }
-                if (sharedState?.project) {
-                    set((state) => ({ project: { ...state.project, ...sharedState.project } }));
-                }
-                if (sharedState?.agent) {
-                    set((state) => ({ agent: { ...state.agent, ...sharedState.agent } }));
-                }
-
-                // Re-open persisted project to spawn CLI
-                const persistedRootPath = get().project.rootPath;
-                if (persistedRootPath) {
-                    await window.sumerian.project.open(persistedRootPath);
-                    get().refreshFileTree();
-                    get().refreshLore();
-                    get().refreshModels();
-                    window.sumerian.files.watch(persistedRootPath);
-
-                    // Load latest session
-                    const latestId = await window.sumerian.session.getLatestId();
-                    if (latestId) {
-                        get().loadSession(latestId);
+                try {
+                    // Load shared state from main process (for detached windows)
+                    const sharedState = await window.sumerian.state.getAll();
+                    if (sharedState?.editor) {
+                        set((state) => ({ editor: { ...state.editor, ...sharedState.editor } }));
                     }
+                    if (sharedState?.project) {
+                        set((state) => ({ project: { ...state.project, ...sharedState.project } }));
+                    }
+                    if (sharedState?.agent) {
+                        // Ensure default values are preserved for missing fields
+                        set((state) => ({ 
+                            agent: { 
+                                ...state.agent, 
+                                ...sharedState.agent,
+                                pinnedFiles: sharedState.agent.pinnedFiles || state.agent.pinnedFiles || [],
+                                toolActions: sharedState.agent.toolActions || state.agent.toolActions || [],
+                                loreFiles: sharedState.agent.loreFiles || state.agent.loreFiles || [],
+                                messages: sharedState.agent.messages || state.agent.messages || [],
+                                availableModels: sharedState.agent.availableModels || state.agent.availableModels || [],
+                            } 
+                        }));
+                    }
+
+                    // Re-open persisted project to spawn CLI
+                    const currentState = get();
+                    const persistedRootPath = currentState?.project?.rootPath;
+                    if (persistedRootPath) {
+                        await window.sumerian.project.open(persistedRootPath);
+                        const store = get();
+                        store.refreshFileTree();
+                        store.refreshLore();
+                        store.refreshModels();
+                        window.sumerian.files.watch(persistedRootPath);
+                    }
+                } catch (error) {
+                    console.error('Init error:', error);
+                    // Continue initialization even if some parts fail
                 }
 
-                window.sumerian.files.onChanged((event) => {
-                    console.log('File change detected:', event);
-                    get().refreshFileTree();
+                // Register event listeners (safe to call even if window.sumerian is not fully ready)
+                try {
+                    window.sumerian.files.onChanged((event) => {
+                        console.log('File change detected:', event);
+                        get().refreshFileTree();
 
-                    const { activeFileId, openFiles } = get().editor;
-                    if (event.path === activeFileId && event.type === 'modify') {
-                        const file = openFiles.find(f => f.id === activeFileId);
-                        if (file && !file.isDirty) {
-                            get().openFile(event.path);
+                        const { activeFileId, openFiles } = get().editor;
+                        if (event.path === activeFileId && event.type === 'modify') {
+                            const file = openFiles.find(f => f.id === activeFileId);
+                            if (file && !file.isDirty) {
+                                get().openFile(event.path);
+                            }
                         }
-                    }
-                });
+                    });
 
-                window.sumerian.cli.onModelsUpdated((models: any[]) => {
-                    console.log('[Store] Models updated via background fetch:', models);
-                    set((state) => ({ agent: { ...state.agent, availableModels: models } }));
-                });
+                    window.sumerian.cli.onModelsUpdated((models: any[]) => {
+                        console.log('[Store] Models updated via background fetch:', models);
+                        set((state) => ({ agent: { ...state.agent, availableModels: models } }));
+                    });
 
-                // Subscribe to typed parsed events (no JSON parsing in renderer)
-                window.sumerian.cli.onAssistantMessage(({ text, isStreaming }) => {
-                    if (text) {
-                        get().setStreamStatus('streaming');
-                        get().updateLastAgentMessage(text);
-                    }
-                });
+                    // Subscribe to typed parsed events (no JSON parsing in renderer)
+                    window.sumerian.cli.onAssistantMessage(({ text, isStreaming }) => {
+                        if (text) {
+                            get().setStreamStatus('streaming');
+                            get().updateLastAgentMessage(text);
+                        }
+                    });
 
-                window.sumerian.cli.onToolAction(async ({ type, name, id, input, content, isError }) => {
+                    window.sumerian.cli.onToolAction(async ({ type, name, id, input, content, isError }) => {
                     console.log(`[Agent] Tool ${type}: ${name || id}`, id);
 
                     if (type === 'use' && name && input) {
@@ -655,64 +903,72 @@ export const useAppStore = create<AppState>()(
                             }
                         }
                     }
-                });
+                    });
 
-                window.sumerian.cli.onAgentStatus(({ status, result, usage, type, message }) => {
-                    if (status === 'complete') {
-                        get().setStreamStatus('idle');
-                        console.log('[Agent] Complete, usage:', usage);
-                        if (usage) {
-                            set((state) => ({ agent: { ...state.agent, usage } }));
-                        }
-                    } else if (status === 'error') {
-                        get().setStreamStatus('idle');
-                        console.error(`[Agent] Error: ${type} - ${message}`);
-                        get().addAgentMessage(`Error: ${message}`);
-                    }
-                });
-
-                // Keep raw output for terminal mirroring (optional debug)
-                window.sumerian.cli.onOutput((output) => {
-                    // Error sensing logic
-                    const content = output.content;
-                    const errorPatterns = [
-                        /TS[0-9]+:/i,
-                        /Error: /i,
-                        /Failed to compile/i,
-                        /ReferenceError:/i,
-                        /TypeError:/i,
-                        /SyntaxError:/i,
-                    ];
-
-                    const hasError = errorPatterns.some(p => p.test(content));
-                    if (hasError && !get().agent.healingLoopActive) {
-                        set((state) => ({ agent: { ...state.agent, lastTerminalError: content } }));
-
-                        // Clear error after 15 seconds
-                        setTimeout(() => {
-                            if (get().agent.lastTerminalError === content) {
-                                set((state) => ({ agent: { ...state.agent, lastTerminalError: null } }));
+                    window.sumerian.cli.onAgentStatus(({ status, result, usage, type, message }) => {
+                        if (status === 'complete') {
+                            get().setStreamStatus('idle');
+                            console.log('[Agent] Complete, usage:', usage);
+                            if (usage) {
+                                set((state) => ({ agent: { ...state.agent, usage } }));
                             }
-                        }, 15000);
-                    }
-                });
+                        } else if (status === 'error') {
+                            get().setStreamStatus('idle');
+                            console.error(`[Agent] Error: ${type} - ${message}`);
+                            get().addAgentMessage(`Error: ${message}`);
+                        }
+                    });
 
-                window.sumerian.cli.onStatusChange((status) => {
-                    get().setAgentStatus(status);
-                });
+                    // Keep raw output for terminal mirroring (optional debug)
+                    window.sumerian.cli.onOutput((output) => {
+                        // Error sensing logic
+                        const content = output.content;
+                        const errorPatterns = [
+                            /TS[0-9]+:/i,
+                            /Error: /i,
+                            /Failed to compile/i,
+                            /ReferenceError:/i,
+                            /TypeError:/i,
+                            /SyntaxError:/i,
+                        ];
 
-                // Listen for state updates from main process
-                window.sumerian.state.onUpdate(({ key, data }) => {
-                    if (key === 'editor') {
-                        set((state) => ({ editor: { ...state.editor, ...data } }));
-                    } else if (key === 'project') {
-                        set((state) => ({ project: { ...state.project, ...data } }));
-                    } else if (key === 'agent') {
-                        set((state) => ({ agent: { ...state.agent, ...data } }));
-                    }
-                });
+                        const hasError = errorPatterns.some(p => p.test(content));
+                        if (hasError && !get().agent.healingLoopActive) {
+                            set((state) => ({ agent: { ...state.agent, lastTerminalError: content } }));
 
-                get().loadRecentProjects();
+                            // Clear error after 15 seconds
+                            setTimeout(() => {
+                                if (get().agent.lastTerminalError === content) {
+                                    set((state) => ({ agent: { ...state.agent, lastTerminalError: null } }));
+                                }
+                            }, 15000);
+                        }
+                    });
+
+                    window.sumerian.cli.onStatusChange((status) => {
+                        get().setAgentStatus(status);
+                    });
+
+                    // Listen for state updates from main process
+                    window.sumerian.state.onUpdate(({ key, data }) => {
+                        if (key === 'editor') {
+                            set((state) => ({ editor: { ...state.editor, ...data } }));
+                        } else if (key === 'project') {
+                            set((state) => ({ project: { ...state.project, ...data } }));
+                        } else if (key === 'agent') {
+                            set((state) => ({ agent: { ...state.agent, ...data } }));
+                        }
+                    });
+                } catch (error) {
+                    console.error('Error registering event listeners:', error);
+                }
+
+                // Load recent projects (safe to fail)
+                try {
+                    await get().loadRecentProjects();
+                } catch (error) {
+                    console.error('Error loading recent projects:', error);
+                }
             }
         }),
 

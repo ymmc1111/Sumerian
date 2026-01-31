@@ -13,7 +13,9 @@ const SessionList: React.FC<SessionListProps> = ({ onClose }) => {
 
     useEffect(() => {
         const fetchSessions = async () => {
+            console.log('[SessionList] Fetching sessions...');
             const list = await listSessions();
+            console.log('[SessionList] Received', list.length, 'sessions:', list);
             setSessions(list);
             setIsLoading(false);
         };
@@ -32,7 +34,7 @@ const SessionList: React.FC<SessionListProps> = ({ onClose }) => {
     };
 
     return (
-        <div className="absolute inset-0 z-50 bg-nexus-bg-primary/95 backdrop-blur-sm flex flex-col">
+        <div className="absolute inset-0 z-50 flex flex-col" style={{ backgroundColor: 'var(--color-bg-primary)', backdropFilter: 'blur(8px)' }}>
             <div className="flex items-center justify-between p-4 border-b border-nexus-border">
                 <div className="flex items-center gap-2">
                     <History className="w-4 h-4 text-nexus-accent" />

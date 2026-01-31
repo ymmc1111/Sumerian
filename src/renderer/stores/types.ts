@@ -107,9 +107,20 @@ export interface ProjectState {
     recentProjects: string[];
 }
 
+export interface EditorGroup {
+    id: string;
+    openFiles: OpenFile[];
+    activeFileId: string | null;
+}
+
+export type EditorLayout = 'single' | 'split-horizontal' | 'split-vertical';
+
 export interface EditorState {
     openFiles: OpenFile[];
     activeFileId: string | null;
+    groups: EditorGroup[];
+    activeGroupId: string;
+    layout: EditorLayout;
 }
 
 export interface AppState {
@@ -140,11 +151,15 @@ export interface AppState {
     loadRecentProjects: () => Promise<void>;
 
     // Editor Actions
-    openFile: (path: string) => Promise<void>;
+    openFile: (path: string, groupId?: string) => Promise<void>;
     closeFile: (id: string) => void;
     setActiveFile: (id: string | null) => void;
     setFileContent: (id: string, content: string) => void;
     saveFile: (id: string) => Promise<void>;
+    splitEditor: (direction: 'horizontal' | 'vertical') => void;
+    closeEditorGroup: (groupId: string) => void;
+    setActiveGroup: (groupId: string) => void;
+    moveFileToGroup: (fileId: string, targetGroupId: string) => void;
 
     // Agent Actions
     sendMessage: (content: string, images?: string[]) => Promise<void>;
@@ -172,5 +187,5 @@ export interface AppState {
     listSessions: () => Promise<any[]>;
     refreshModels: () => Promise<void>;
     forceRefreshModels: () => Promise<void>;
-    init: () => void;
+    init: () => Promise<void>;
 }

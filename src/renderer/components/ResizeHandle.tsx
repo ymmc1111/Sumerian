@@ -26,52 +26,52 @@ export const ResizeHandle: React.FC<ResizeHandleProps> = ({
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
-    
+
     const viewport = { width: window.innerWidth, height: window.innerHeight };
-    
+
     startRef.current = {
       x: e.clientX,
       y: e.clientY,
-      width: slot.width > 0 ? (slot.width / 100) * viewport.width : viewport.width,
-      height: slot.height > 0 ? (slot.height / 100) * viewport.height : viewport.height,
+      width: slot.width,
+      height: slot.height,
     };
-    
+
     setIsResizing(true);
-    
+
     const handleMouseMove = (moveEvent: MouseEvent) => {
       if (!startRef.current) return;
-      
+
       const deltaX = moveEvent.clientX - startRef.current.x;
       const deltaY = moveEvent.clientY - startRef.current.y;
-      
+
       let newWidth = startRef.current.width;
       let newHeight = startRef.current.height;
-      
+
       if (direction === 'horizontal' || direction === 'both') {
         if (position === 'right') {
           newWidth = startRef.current.width + deltaX;
         } else if (position === 'left') {
           newWidth = startRef.current.width - deltaX;
         }
-        
+
         // Apply constraints
         newWidth = Math.max(config.constraints.minWidth, Math.min(config.constraints.maxWidth, newWidth));
       }
-      
+
       if (direction === 'vertical' || direction === 'both') {
         if (position === 'bottom') {
           newHeight = startRef.current.height + deltaY;
         } else if (position === 'top') {
           newHeight = startRef.current.height - deltaY;
         }
-        
+
         // Apply constraints
         newHeight = Math.max(config.constraints.minHeight, Math.min(config.constraints.maxHeight, newHeight));
       }
-      
+
       resizeSlot(slotId, newWidth, newHeight);
     };
-    
+
     const handleMouseUp = () => {
       setIsResizing(false);
       startRef.current = null;
@@ -79,7 +79,7 @@ export const ResizeHandle: React.FC<ResizeHandleProps> = ({
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-    
+
     // Set cursor based on direction
     if (direction === 'horizontal') {
       document.body.style.cursor = 'col-resize';
@@ -88,7 +88,7 @@ export const ResizeHandle: React.FC<ResizeHandleProps> = ({
     } else {
       document.body.style.cursor = position === 'right' || position === 'left' ? 'col-resize' : 'row-resize';
     }
-    
+
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mouseup', handleMouseUp);
   }, [slot, slotId, direction, position, config, resizeSlot]);
@@ -102,13 +102,13 @@ export const ResizeHandle: React.FC<ResizeHandleProps> = ({
   const getPositionClasses = () => {
     switch (position) {
       case 'left':
-        return 'left-0 top-0 w-1 h-full -translate-x-1/2';
+        return 'left-0 top-0 w-[2px] h-full -translate-x-1/2';
       case 'right':
-        return 'right-0 top-0 w-1 h-full translate-x-1/2';
+        return 'right-0 top-0 w-[2px] h-full translate-x-1/2';
       case 'top':
-        return 'top-0 left-0 h-1 w-full -translate-y-1/2';
+        return 'top-0 left-0 h-[2px] w-full -translate-y-1/2';
       case 'bottom':
-        return 'bottom-0 left-0 h-1 w-full translate-y-1/2';
+        return 'bottom-0 left-0 h-[2px] w-full translate-y-1/2';
     }
   };
 
@@ -118,16 +118,17 @@ export const ResizeHandle: React.FC<ResizeHandleProps> = ({
         absolute z-20
         ${getPositionClasses()}
         ${getCursor()}
-        ${isResizing ? 'bg-blue-500' : 'bg-transparent hover:bg-blue-400/50'}
-        transition-colors duration-150
+        ${isResizing ? 'bg-[#2563eb]' : 'bg-transparent hover:bg-[#3b82f6]'}
+        transition-all duration-150
+        ${isResizing ? 'shadow-[0_0_10px_rgba(37,99,235,0.5)]' : ''}
         ${className}
       `}
       onMouseDown={handleMouseDown}
     >
-      {/* Larger hit area */}
+      {/* Larger hit area - 6px */}
       <div className={`
         absolute
-        ${direction === 'horizontal' ? 'w-2 h-full -left-0.5' : 'h-2 w-full -top-0.5'}
+        ${direction === 'horizontal' ? 'w-[6px] h-full -left-[2px]' : 'h-[6px] w-full -top-[2px]'}
       `} />
     </div>
   );

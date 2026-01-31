@@ -51,7 +51,7 @@ function getToolDescription(action: ToolAction): string {
 const ToolActionFeed: React.FC<Props> = ({ actions }) => {
     const [isExpanded, setIsExpanded] = useState(false);
 
-    if (actions.length === 0) return null;
+    if (!actions || actions.length === 0) return null;
 
     const recentActions = actions.slice(-5).reverse();
     const latestAction = actions[actions.length - 1];

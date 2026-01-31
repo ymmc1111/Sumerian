@@ -1,9 +1,7 @@
-import React, { useEffect, useRef } from 'react';
-import Editor from '@monaco-editor/react';
-import { sumerianDarkTheme } from '../themes/monacoTheme';
-import TabBar from '../components/TabBar';
+import React from 'react';
 import { useAppStore } from '../stores/useAppStore';
 import PanelHeader from '../components/PanelHeader';
+import EditorGroup from '../components/EditorGroup';
 import { Code } from 'lucide-react';
 import { PanelSlotId } from '../types/layout';
 
@@ -12,86 +10,50 @@ interface EditorPanelProps {
 }
 
 const EditorPanel: React.FC<EditorPanelProps> = ({ slotId = 'B' }) => {
-    const { editor, ui, setFileContent, saveFile } = useAppStore();
-    const { openFiles, activeFileId } = editor;
-    const { settings } = ui;
-    const activeFile = openFiles.find(f => f.id === activeFileId);
+    const { editor, splitEditor, closeEditorGroup } = useAppStore();
+    const { groups, activeGroupId, layout } = editor;
 
-    const editorRef = useRef<any>(null);
-
-    const handleEditorWillMount = (monaco: any) => {
-        monaco.editor.defineTheme('sumerian-dark', sumerianDarkTheme);
+    const handleSplit = (direction: 'horizontal' | 'vertical') => {
+        splitEditor(direction);
     };
 
-    const handleEditorDidMount = (editor: any) => {
-        editorRef.current = editor;
+    const handleCloseGroup = (groupId: string) => {
+        closeEditorGroup(groupId);
     };
-
-    const handleEditorChange = (value: string | undefined) => {
-        if (activeFileId && value !== undefined) {
-            setFileContent(activeFileId, value);
-        }
-    };
-
-    // Keyboard shortcuts
-    useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if ((e.metaKey || e.ctrlKey) && e.key === 's') {
-                e.preventDefault();
-                if (activeFileId) {
-                    saveFile(activeFileId);
-                }
-            }
-        };
-
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [activeFileId, saveFile]);
-
-    if (!activeFile) {
-        return (
-            <div className="flex-1 h-full bg-nexus-bg-primary flex flex-col items-center justify-center text-nexus-fg-muted">
-                <div className="text-sm">No file selected</div>
-            </div>
-        );
-    }
 
     return (
         <div className="flex-1 h-full bg-nexus-bg-primary flex flex-col overflow-hidden">
             <PanelHeader
-                title={activeFile.name}
+                title="Editor"
                 panelType="editor"
                 slotId={slotId}
                 icon={<Code className="w-4 h-4" />}
-                actions={<TabBar />}
             />
-            <div className="flex-1 relative">
-                <Editor
-                    height="100%"
-                    language={activeFile.language === 'ts' || activeFile.language === 'tsx' ? 'typescript' : 'javascript'}
-                    value={activeFile.content}
-                    theme="sumerian-dark"
-                    beforeMount={handleEditorWillMount}
-                    onMount={handleEditorDidMount}
-                    onChange={handleEditorChange}
-                    options={{
-                        fontSize: settings.fontSize,
-                        fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-                        fontLigatures: true,
-                        lineNumbers: 'on',
-                        minimap: { enabled: false },
-                        scrollBeyondLastLine: false,
-                        wordWrap: 'on',
-                        tabSize: 2,
-                        insertSpaces: true,
-                        automaticLayout: true,
-                        cursorBlinking: 'smooth',
-                        cursorSmoothCaretAnimation: 'on',
-                        smoothScrolling: true,
-                        renderWhitespace: 'selection',
-                        bracketPairColorization: { enabled: true }
-                    }}
-                />
+            
+            {/* Editor Groups Container */}
+            <div className={`flex-1 flex ${
+                layout === 'split-horizontal' ? 'flex-row' : 
+                layout === 'split-vertical' ? 'flex-col' : 
+                'flex-col'
+            }`}>
+                {groups.map((group, index) => (
+                    <div 
+                        key={group.id} 
+                        className={`flex-1 ${
+                            index > 0 && layout === 'split-horizontal' ? 'border-l border-nexus-border' :
+                            index > 0 && layout === 'split-vertical' ? 'border-t border-nexus-border' :
+                            ''
+                        }`}
+                    >
+                        <EditorGroup
+                            group={group}
+                            isActive={group.id === activeGroupId}
+                            canClose={groups.length > 1}
+                            onSplit={handleSplit}
+                            onClose={() => handleCloseGroup(group.id)}
+                        />
+                    </div>
+                ))}
             </div>
         </div>
     );

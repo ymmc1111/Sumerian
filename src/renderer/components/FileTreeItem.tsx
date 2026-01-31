@@ -13,7 +13,7 @@ const FileTreeItem: React.FC<FileTreeItemProps> = ({ node, level }) => {
     const [isOpen, setIsOpen] = useState(false);
     const { openFile, editor, agent, toggleFilePin } = useAppStore();
     const { activeFileId } = editor;
-    const isPinned = agent.pinnedFiles.includes(node.path);
+    const isPinned = agent.pinnedFiles?.includes(node.path) ?? false;
 
     const handleClick = (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -81,12 +81,19 @@ const DirectoryLoader: React.FC<{ path: string; level: number }> = ({ path, leve
     const [children, setChildren] = useState<FileNode[]>([]);
     const [loading, setLoading] = useState(true);
 
-    useState(() => {
-        window.sumerian.files.list(path).then(res => {
-            setChildren(res);
+    React.useEffect(() => {
+        if (window.sumerian?.files) {
+            window.sumerian.files.list(path).then(res => {
+                setChildren(res);
+                setLoading(false);
+            }).catch(err => {
+                console.error('Failed to load directory:', err);
+                setLoading(false);
+            });
+        } else {
             setLoading(false);
-        });
-    });
+        }
+    }, [path]);
 
     if (loading) return null;
 

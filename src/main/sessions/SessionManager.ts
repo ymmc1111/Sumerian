@@ -29,7 +29,9 @@ export class SessionManager {
     public async saveSession(data: SessionData): Promise<void> {
         await this.ensureDir();
         const filePath = path.join(this.sessionsDir, `${data.id}.json`);
+        console.log('[SessionManager] Saving session to:', filePath);
         await fs.writeFile(filePath, JSON.stringify(data, null, 2), 'utf8');
+        console.log('[SessionManager] Session saved successfully');
 
         // Also update a "latest" symlink or simple file
         const latestPath = path.join(this.sessionsDir, 'latest.json');
@@ -60,18 +62,29 @@ export class SessionManager {
 
     public async listSessions(): Promise<any[]> {
         await this.ensureDir();
+        console.log('[SessionManager] Listing sessions from:', this.sessionsDir);
+        const sessions = [];
         try {
             const files = await fs.readdir(this.sessionsDir);
-            const sessions = [];
+            console.log('[SessionManager] Found files:', files);
+            
             for (const file of files) {
                 if (file.endsWith('.json') && file !== 'latest.json') {
-                    const content = await fs.readFile(path.join(this.sessionsDir, file), 'utf8');
-                    sessions.push(JSON.parse(content));
+                    try {
+                        const content = await fs.readFile(path.join(this.sessionsDir, file), 'utf8');
+                        const session = JSON.parse(content);
+                        sessions.push(session);
+                    } catch (parseErr) {
+                        console.warn('[SessionManager] Skipping corrupted session file:', file, parseErr);
+                        // Skip corrupted files and continue
+                    }
                 }
             }
+            console.log('[SessionManager] Successfully parsed', sessions.length, 'sessions');
             return sessions.sort((a, b) => b.timestamp - a.timestamp);
-        } catch {
-            return [];
+        } catch (err) {
+            console.error('[SessionManager] Error listing sessions:', err);
+            return sessions; // Return whatever we managed to parse
         }
     }
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { PanelType } from '../types/layout';
 import Sidebar from '../panels/Sidebar';
 import EditorPanel from '../panels/EditorPanel';
@@ -24,14 +24,122 @@ export const DetachedPanelWindow: React.FC<DetachedPanelWindowProps> = ({
   windowId,
 }) => {
   const { init, project } = useAppStore();
-  const [isReady, setIsReady] = useState(false);
-  
+
   useEffect(() => {
-    // Initialize the app store for this window
-    init();
-    setIsReady(true);
+    // Initialize the app store for this window (loads from shared state)
+    // This happens asynchronously in the background while the UI renders
+    init().catch((error: unknown) => {
+      console.error('Failed to initialize detached window:', error);
+    });
+
+    // Subscribe to state broadcasts from main window
+    const cleanupEditorContent = window.sumerian.state.onSync('editor:content', (data: { id: string; content: string }) => {
+      const { editor } = useAppStore.getState();
+      const file = editor.openFiles.find(f => f.id === data.id);
+      if (file && file.content !== data.content) {
+        useAppStore.setState({
+          editor: {
+            ...editor,
+            openFiles: editor.openFiles.map(f =>
+              f.id === data.id ? { ...f, content: data.content, isDirty: true } : f
+            )
+          }
+        });
+      }
+    });
+
+    const cleanupEditorClose = window.sumerian.state.onSync('editor:close', (data: { id: string }) => {
+      const { editor } = useAppStore.getState();
+      const openFiles = editor.openFiles.filter(f => f.id !== data.id);
+      let activeFileId = editor.activeFileId;
+      if (activeFileId === data.id) {
+        activeFileId = openFiles.length > 0 ? openFiles[openFiles.length - 1].id : null;
+      }
+      useAppStore.setState({
+        editor: { ...editor, openFiles, activeFileId }
+      });
+    });
+
+    const cleanupEditorSave = window.sumerian.state.onSync('editor:save', (data: { id: string }) => {
+      const { editor } = useAppStore.getState();
+      useAppStore.setState({
+        editor: {
+          ...editor,
+          openFiles: editor.openFiles.map(f =>
+            f.id === data.id ? { ...f, isDirty: false } : f
+          )
+        }
+      });
+    });
+
+    // Agent state sync
+    const cleanupAgentMessage = window.sumerian.state.onSync('agent:message', (message: any) => {
+      const { agent } = useAppStore.getState();
+      // Check if message already exists to avoid duplicates
+      const exists = agent.messages.some(m => m.id === message.id);
+      if (!exists) {
+        useAppStore.setState({
+          agent: {
+            ...agent,
+            messages: [...agent.messages, message]
+          }
+        });
+      }
+    });
+
+    const cleanupAgentStream = window.sumerian.state.onSync('agent:stream', (data: { content: string }) => {
+      const { agent } = useAppStore.getState();
+      const messages = [...agent.messages];
+      const lastIndex = messages.findLastIndex(m => m.role === 'agent');
+      if (lastIndex !== -1) {
+        messages[lastIndex] = {
+          ...messages[lastIndex],
+          content: data.content
+        };
+        useAppStore.setState({
+          agent: { ...agent, messages }
+        });
+      }
+    });
+
+    const cleanupAgentStatus = window.sumerian.state.onSync('agent:status', (data: { status: string }) => {
+      const { agent } = useAppStore.getState();
+      useAppStore.setState({
+        agent: { ...agent, status: data.status as any }
+      });
+    });
+
+    const cleanupAgentClear = window.sumerian.state.onSync('agent:clear', () => {
+      const { agent } = useAppStore.getState();
+      useAppStore.setState({
+        agent: { ...agent, messages: [] }
+      });
+    });
+
+    const cleanupAgentSessionLoaded = window.sumerian.state.onSync('agent:session-loaded', (data: { sessionId: string; messages: any[]; usage: any }) => {
+      const { agent } = useAppStore.getState();
+      useAppStore.setState({
+        agent: {
+          ...agent,
+          sessionId: data.sessionId,
+          messages: data.messages,
+          usage: data.usage
+        }
+      });
+    });
+
+    return () => {
+      cleanupEditorContent();
+      cleanupEditorClose();
+      cleanupEditorSave();
+      cleanupAgentMessage();
+      cleanupAgentStream();
+      cleanupAgentStatus();
+      cleanupAgentClear();
+      cleanupAgentSessionLoaded();
+    };
   }, [init]);
-  
+
   const handleClose = async () => {
     await window.sumerian.window.reattachPanel(windowId);
   };
@@ -51,6 +159,7 @@ export const DetachedPanelWindow: React.FC<DetachedPanelWindowProps> = ({
     }
   };
 
+
   return (
     <div className="flex flex-col h-screen w-screen bg-nexus-bg-primary text-nexus-fg-primary overflow-hidden font-sans">
       {/* Detached window title bar */}
@@ -69,16 +178,12 @@ export const DetachedPanelWindow: React.FC<DetachedPanelWindowProps> = ({
           <X className="w-4 h-4" />
         </button>
       </div>
-      
+
       {/* Panel content */}
       <div className="flex-1 overflow-hidden">
-        {isReady ? renderPanel() : (
-          <div className="flex items-center justify-center h-full text-gray-500">
-            Loading...
-          </div>
-        )}
+        {renderPanel()}
       </div>
-      
+
       <style>{`
         .drag-region {
           -webkit-app-region: drag;

@@ -37,7 +37,7 @@ export const PANEL_CONFIGS: Record<PanelType, PanelConfig> = {
   terminal: {
     type: 'terminal',
     defaultSlot: 'D',
-    constraints: { minWidth: 0, maxWidth: Infinity, minHeight: 100, maxHeight: 500 },
+    constraints: { minWidth: 0, maxWidth: Infinity, minHeight: 100, maxHeight: Infinity },
     canCollapse: true,
     canStack: true,
   },
@@ -48,7 +48,7 @@ const createDefaultSlots = (): Record<PanelSlotId, PanelSlot> => ({
   A: { id: 'A', panelType: 'sidebar', x: 0, y: 0, width: 260, height: 100, isCollapsed: false, zIndex: 1 },
   B: { id: 'B', panelType: 'editor', x: 260, y: 0, width: 0, height: 70, isCollapsed: false, zIndex: 1 },
   C: { id: 'C', panelType: 'agent', x: 0, y: 0, width: 380, height: 100, isCollapsed: false, zIndex: 1 },
-  D: { id: 'D', panelType: 'terminal', x: 260, y: 70, width: 0, height: 30, isCollapsed: false, zIndex: 1 },
+  D: { id: 'D', panelType: 'terminal', x: 260, y: 70, width: 0, height: 300, isCollapsed: false, zIndex: 1 },
 });
 
 interface LayoutActions {

@@ -25,12 +25,12 @@ export class WindowManager {
 
   detachPanel(panelType: PanelType, bounds?: { x: number; y: number; width: number; height: number }): string {
     const id = `detached-${panelType}-${Date.now()}`;
-    
+
     const defaultBounds = bounds || this.getDefaultBounds(panelType);
-    
+
     // Get preload path - use same path as main window
     const preloadPath = path.join(__dirname, 'preload.cjs');
-    
+
     const window = new BrowserWindow({
       x: defaultBounds.x,
       y: defaultBounds.y,
@@ -46,7 +46,7 @@ export class WindowManager {
         nodeIntegration: false,
       },
     });
-    
+
     // Open DevTools in development
     if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
       window.webContents.openDevTools();
@@ -91,7 +91,7 @@ export class WindowManager {
   focusWindow(windowId: string): boolean {
     const detached = this.detachedWindows.get(windowId);
     if (!detached) return false;
-    
+
     detached.window.focus();
     return true;
   }
@@ -105,12 +105,12 @@ export class WindowManager {
 
     const display = displays[screenIndex];
     const { x, y, width, height } = display.workArea;
-    
+
     // Center the window on the target screen
     const windowBounds = detached.window.getBounds();
     const newX = x + Math.floor((width - windowBounds.width) / 2);
     const newY = y + Math.floor((height - windowBounds.height) / 2);
-    
+
     detached.window.setPosition(newX, newY);
     return true;
   }
@@ -135,7 +135,7 @@ export class WindowManager {
     };
 
     const size = defaults[panelType];
-    
+
     return {
       x: Math.floor((screenWidth - size.width) / 2),
       y: Math.floor((screenHeight - size.height) / 2),

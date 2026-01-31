@@ -50,7 +50,7 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
                     >
                         <ReactMarkdown
                             components={{
-                                p: ({ children }) => <p className="mb-2 last:mb-0" style={{ color: 'inherit' }}>{children}</p>,
+                                p: ({ children }) => <div className="mb-2 last:mb-0" style={{ color: 'inherit' }}>{children}</div>,
                                 code: (props) => <CodeBlock {...props} />,
                             }}
                         >
