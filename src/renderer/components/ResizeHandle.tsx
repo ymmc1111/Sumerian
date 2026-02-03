@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useRef, useState, useEffect } from 'react';
 import { PanelSlotId } from '../types/layout';
 import { useLayoutStore, PANEL_CONFIGS } from '../stores/layoutStore';
 
@@ -19,7 +19,8 @@ export const ResizeHandle: React.FC<ResizeHandleProps> = ({
 }) => {
   const { slots, resizeSlot } = useLayoutStore();
   const [isResizing, setIsResizing] = useState(false);
-  const startRef = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
+  const startRef = useRef<{ x: number; y: number; width: number; height: number; containerHeight?: number } | null>(null);
+  const containerRef = useRef<HTMLElement | null>(null);
 
   const slot = slots[slotId];
   const config = PANEL_CONFIGS[slot.panelType];
@@ -27,13 +28,17 @@ export const ResizeHandle: React.FC<ResizeHandleProps> = ({
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
 
-    const viewport = { width: window.innerWidth, height: window.innerHeight };
+    // Get the container element for ratio calculations (slot D)
+    const target = e.target as HTMLElement;
+    const container = target.closest('.flex-col') as HTMLElement;
+    containerRef.current = container;
 
     startRef.current = {
       x: e.clientX,
       y: e.clientY,
       width: slot.width,
       height: slot.height,
+      containerHeight: container?.clientHeight,
     };
 
     setIsResizing(true);
@@ -59,14 +64,27 @@ export const ResizeHandle: React.FC<ResizeHandleProps> = ({
       }
 
       if (direction === 'vertical' || direction === 'both') {
-        if (position === 'bottom') {
-          newHeight = startRef.current.height + deltaY;
-        } else if (position === 'top') {
-          newHeight = startRef.current.height - deltaY;
+        if (slotId === 'D' && startRef.current.containerHeight) {
+          // For slot D, convert pixel delta to ratio
+          const deltaRatio = deltaY / startRef.current.containerHeight;
+          if (position === 'bottom') {
+            newHeight = startRef.current.height + deltaRatio;
+          } else if (position === 'top') {
+            // Dragging the top handle up decreases terminal height (increases editor)
+            newHeight = startRef.current.height - deltaRatio;
+          }
+          // Clamp ratio between 0.1 and 0.8 (10% to 80%)
+          newHeight = Math.max(0.1, Math.min(0.8, newHeight));
+        } else {
+          // Legacy pixel-based for other slots
+          if (position === 'bottom') {
+            newHeight = startRef.current.height + deltaY;
+          } else if (position === 'top') {
+            newHeight = startRef.current.height - deltaY;
+          }
+          // Apply constraints
+          newHeight = Math.max(config.constraints.minHeight, Math.min(config.constraints.maxHeight, newHeight));
         }
-
-        // Apply constraints
-        newHeight = Math.max(config.constraints.minHeight, Math.min(config.constraints.maxHeight, newHeight));
       }
 
       resizeSlot(slotId, newWidth, newHeight);
@@ -75,6 +93,7 @@ export const ResizeHandle: React.FC<ResizeHandleProps> = ({
     const handleMouseUp = () => {
       setIsResizing(false);
       startRef.current = null;
+      containerRef.current = null;
       document.body.style.cursor = '';
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);

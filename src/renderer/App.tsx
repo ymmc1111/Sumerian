@@ -265,8 +265,9 @@ const App: React.FC = () => {
                     {!isPanelDetached(slots.D.panelType) && (
                         <div
                             style={{
-                                height: slots.D.isCollapsed ? '4px' : `${slots.D.height}px`,
-                                transition: isDragging ? 'none' : 'height 200ms ease-out'
+                                flex: slots.D.isCollapsed ? '0 0 4px' : `${Math.max(0.1, Math.min(0.8, slots.D.height))} 0 0`,
+                                minHeight: slots.D.isCollapsed ? '4px' : `${Math.max(0.1, Math.min(0.8, slots.D.height)) * 100}%`,
+                                transition: isDragging ? 'none' : 'flex 200ms ease-out'
                             }}
                             className={`flex-shrink-0 border-t border-nexus-border relative ${slots.D.isCollapsed ? 'overflow-hidden' : ''} ${isDragging && targetSlotId === 'D' ? 'ring-4 ring-blue-500/50 ring-inset' : ''
                                 }`}

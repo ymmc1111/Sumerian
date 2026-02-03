@@ -49,7 +49,7 @@ const createDefaultSlots = (): Record<PanelSlotId, PanelSlot> => ({
   A: { id: 'A', panelType: 'sidebar', x: 0, y: 0, width: 260, height: 100, isCollapsed: false, zIndex: 1 },
   B: { id: 'B', panelType: 'editor', x: 260, y: 0, width: 0, height: 70, isCollapsed: false, zIndex: 1 },
   C: { id: 'C', panelType: 'agent', x: 0, y: 0, width: 420, height: 100, isCollapsed: false, zIndex: 1 },
-  D: { id: 'D', panelType: 'terminal', x: 260, y: 70, width: 0, height: 300, isCollapsed: false, zIndex: 1 },
+  D: { id: 'D', panelType: 'terminal', x: 260, y: 70, width: 0, height: 0.3, isCollapsed: false, zIndex: 1 },
 });
 
 interface LayoutActions {
@@ -206,10 +206,19 @@ export const useLayoutStore = create<LayoutStore>()(
           config.constraints.minWidth,
           Math.min(config.constraints.maxWidth, width)
         );
-        const constrainedHeight = Math.max(
-          config.constraints.minHeight,
-          Math.min(config.constraints.maxHeight, height)
-        );
+        
+        let constrainedHeight = height;
+        
+        // For terminal (slot D), height is stored as a ratio (0-1)
+        if (slotId === 'D') {
+          // Clamp ratio between 0.1 (10%) and 0.8 (80%)
+          constrainedHeight = Math.max(0.1, Math.min(0.8, height));
+        } else {
+          constrainedHeight = Math.max(
+            config.constraints.minHeight,
+            Math.min(config.constraints.maxHeight, height)
+          );
+        }
         
         slots[slotId] = { ...slot, width: constrainedWidth, height: constrainedHeight };
         set({ slots });
@@ -403,6 +412,15 @@ export const useLayoutStore = create<LayoutStore>()(
       } as LayoutStore),
       onRehydrateStorage: () => (state) => {
         if (state?.slots) {
+          // Convert legacy pixel-based terminal height to ratio-based
+          if (state.slots.D && state.slots.D.height > 1) {
+            // Legacy pixel value detected, convert to ratio (assume 900px as reference height)
+            const pixelHeight = state.slots.D.height;
+            const ratio = Math.max(0.1, Math.min(0.8, pixelHeight / 900));
+            state.slots.D.height = ratio;
+            console.log('[LayoutStore] Migrated terminal height from', pixelHeight, 'px to', ratio, 'ratio');
+          }
+          
           const fixedSlots = validateAndFixSlots(state.slots);
           if (fixedSlots !== state.slots) {
             state.slots = fixedSlots;
