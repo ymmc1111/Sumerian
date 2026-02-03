@@ -9,7 +9,11 @@ export class SandboxValidator {
 
     public isPathInSandbox(targetPath: string): boolean {
         const absolutePath = path.resolve(targetPath);
-        return absolutePath.startsWith(this.projectRoot);
+        const inSandbox = absolutePath.startsWith(this.projectRoot);
+        if (!inSandbox) {
+            console.warn(`[SandboxValidator] DENIED: ${absolutePath} is not in ${this.projectRoot}`);
+        }
+        return inSandbox;
     }
 
     public validateAccess(targetPath: string): { allowed: boolean; reason?: string } {

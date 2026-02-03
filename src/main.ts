@@ -59,17 +59,25 @@ const createWindow = () => {
   }
 
   // DevTools can be opened manually with Cmd+Option+I
-  
+
   // Register main window with window manager
   windowManager.setMainWindow(mainWindow);
-  
+
   // Set preload path for detached windows (must use __dirname from here, not from WindowManager)
   windowManager.setPreloadPath(path.join(__dirname, 'preload.cjs'));
 };
 
+// Basic error handling for the main process
+process.on('uncaughtException', (error) => {
+  console.error('[Main] Uncaught Exception:', error);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[Main] Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
-// Some APIs can only be used after this event occurs.
 app.on('ready', createWindow);
 
 // Quit when all windows are closed, except on macOS. There, it's common
@@ -87,6 +95,17 @@ app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) {
     createWindow();
   }
+});
+
+import { terminalManager } from './main/ipc/handlers';
+import { cliSessionManager } from './main/projects/CLISessionManager';
+
+// ... rest of the file ...
+
+app.on('before-quit', () => {
+  console.log('[Sumerian] Cleaning up before quit...');
+  terminalManager.killAll();
+  cliSessionManager.terminateAll();
 });
 
 // In this file you can include the rest of your app's specific main process

@@ -1,7 +1,7 @@
 import * as pty from 'node-pty';
 import * as os from 'os';
 import * as path from 'path';
-import { execSync, exec } from 'child_process';
+import { execSync, exec, spawn } from 'child_process';
 import { app } from 'electron';
 import * as fs from 'fs/promises';
 import { existsSync } from 'fs';
@@ -47,11 +47,11 @@ export class CLIManager {
         this.workforceSync = new WorkforceSync(projectRoot);
         const shellPath = getShellPath();
         console.log('[CLIManager] Using shell PATH:', shellPath.substring(0, 100) + '...');
-        
+
         // Check for MCP config (project-specific overrides global)
         const projectMcpPath = path.join(projectRoot, '.sumerian', 'mcp-config.json');
         const globalMcpPath = path.join(app.getPath('home'), '.sumerian', 'mcp-config.json');
-        
+
         if (existsSync(projectMcpPath)) {
             this.mcpConfigPath = projectMcpPath;
             console.log('[CLIManager] Using project MCP config:', projectMcpPath);
@@ -59,10 +59,10 @@ export class CLIManager {
             this.mcpConfigPath = globalMcpPath;
             console.log('[CLIManager] Using global MCP config:', globalMcpPath);
         }
-        
+
         const baseArgs = ['-p', '--output-format', 'stream-json', '--verbose'];
         const mcpArgs = this.mcpConfigPath ? ['--mcp-config', this.mcpConfigPath] : [];
-        
+
         this.config = {
             executable: resolveClaudePathSync(),
             args: [...baseArgs, ...mcpArgs],
@@ -87,6 +87,12 @@ export class CLIManager {
         }
     }
 
+    public setHasExistingSession(hasMessages: boolean): void {
+        // When loading a cached session with messages, we need --continue flag
+        this.isFirstMessage = !hasMessages;
+        console.log('[CLIManager] Session state updated, isFirstMessage:', this.isFirstMessage);
+    }
+
     public spawnAgent(persona: Persona, task: string, workingDir?: string): string {
         const agentId = `sumerian-agent-${Date.now()}`;
         console.log('[CLIManager] Spawning agent:', agentId, 'persona:', persona.id, 'task:', task);
@@ -106,15 +112,15 @@ export class CLIManager {
         };
 
         this.agentPool.set(agentId, agent);
-        
+
         // Register agent with workforce sync
         this.workforceSync.registerAgent(agentId).catch(err => {
             console.error('[CLIManager] Failed to register agent:', err);
         });
-        
+
         // Start the agent with the task
         this.sendAgentMessage(agentId, task);
-        
+
         return agentId;
     }
 
@@ -125,15 +131,15 @@ export class CLIManager {
             if (agent.pty) {
                 agent.pty.kill();
             }
-            
+
             // Stop resource monitoring
             this.stopResourceMonitoring(agentId);
-            
+
             // Unregister from workforce sync (unlocks all files)
             this.workforceSync.unregisterAgent(agentId).catch(err => {
                 console.error('[CLIManager] Failed to unregister agent:', err);
             });
-            
+
             this.agentPool.delete(agentId);
         }
     }
@@ -151,9 +157,10 @@ export class CLIManager {
     }
 
     private sendAgentMessage(agentId: string, prompt: string): void {
+        console.log(`[CLIManager] sendAgentMessage: id=${agentId}, promptLength=${prompt.length}`);
         const agent = this.agentPool.get(agentId);
         const isMainAgent = agentId === this.mainAgentId;
-        
+
         // For main agent, use existing ptyProcess logic for backward compatibility
         if (isMainAgent && agent && agent.pty) {
             agent.pty.kill();
@@ -164,6 +171,7 @@ export class CLIManager {
         }
 
         this.currentAgentId = agentId;
+        this.parser.reset(); // Crucial: Reset parser for the new process
 
         const args = [...this.config.args];
 
@@ -230,11 +238,11 @@ export class CLIManager {
         }
 
         // Add tool restrictions from persona or config
-        const disallowedTools = (agent && agent.persona && agent.persona.disallowedTools.length > 0) 
-            ? agent.persona.disallowedTools 
+        const disallowedTools = (agent && agent.persona && agent.persona.disallowedTools.length > 0)
+            ? agent.persona.disallowedTools
             : this.config.disallowedTools;
-        const allowedTools = (agent && agent.persona && agent.persona.allowedTools.length > 0) 
-            ? agent.persona.allowedTools 
+        const allowedTools = (agent && agent.persona && agent.persona.allowedTools.length > 0)
+            ? agent.persona.allowedTools
             : this.config.allowedTools;
 
         if (disallowedTools && disallowedTools.length > 0) {
@@ -245,8 +253,8 @@ export class CLIManager {
             args.push('--allowedTools', allowedTools.join(','));
         }
 
-        // Add the prompt as the final argument
-        args.push(prompt);
+        // Add the prompt as the final argument, separated by -- to prevent arg interpretation
+        args.push('--', prompt);
 
         this.setStatus(ConnectionStatus.CONNECTING);
 
@@ -254,6 +262,7 @@ export class CLIManager {
             console.log('[CLIManager] Sending message for agent:', agentId, this.config.executable, args.slice(0, 5).join(' ') + '...');
 
             const workingDir = agent ? agent.context.workingDir : this.config.cwd;
+            console.log('[CLIManager] Full command:', this.config.executable, args.join(' '));
             const ptyProcess = pty.spawn(this.config.executable, args, {
                 name: 'xterm-color',
                 cols: 120,
@@ -263,7 +272,7 @@ export class CLIManager {
             });
 
             console.log('[CLIManager] Process spawned with PID:', ptyProcess.pid, 'for agent:', agentId);
-            
+
             // Store pty in agent or create main agent entry
             if (!agent) {
                 // Create main agent entry if it doesn't exist
@@ -288,7 +297,7 @@ export class CLIManager {
                     pid: ptyProcess.pid
                 };
                 this.agentPool.set(this.mainAgentId, mainAgent);
-                
+
                 // Start resource monitoring for main agent
                 this.startResourceMonitoring(this.mainAgentId);
             } else {
@@ -296,13 +305,13 @@ export class CLIManager {
                 agent.status = 'active';
                 agent.pid = ptyProcess.pid;
                 agent.messageHistory.push({ role: 'user', content: prompt, timestamp: Date.now() });
-                
+
                 // Start resource monitoring for spawned agent
                 if (agentId !== this.mainAgentId) {
                     this.startResourceMonitoring(agentId);
                 }
             }
-            
+
             this.setStatus(ConnectionStatus.CONNECTED);
 
             ptyProcess.onData((data) => {
@@ -313,35 +322,49 @@ export class CLIManager {
                     content: data,
                     timestamp: Date.now()
                 };
-                
+
                 // Send to main output handler (for backward compatibility)
                 this.events.onOutput(output);
-                
+
                 // Also send agent-specific output if handler exists
                 if (this.events.onAgentOutput) {
                     this.events.onAgentOutput(agentId, output);
                 }
-                
+
                 // Parse for typed events
-                this.parser.parse(data);
+                try {
+                    this.parser.parse(data);
+                } catch (err) {
+                    console.error('[CLIManager] Parser error during data reception:', err);
+                }
             });
 
             ptyProcess.onExit(({ exitCode, signal }) => {
                 console.log('[CLIManager] Process exited for agent:', agentId, exitCode, signal);
-                this.parser.flush();
-                
+                try {
+                    this.parser.flush();
+                } catch (err) {
+                    console.error('[CLIManager] Parser error during flush:', err);
+                }
+
+                // Stop resource monitoring before cleanup to prevent EBADF errors
+                this.stopResourceMonitoring(agentId);
+
                 const currentAgent = this.agentPool.get(agentId);
                 if (currentAgent) {
                     currentAgent.pty = null;
                     currentAgent.status = exitCode === 0 ? 'complete' : 'error';
                 }
-                
+
                 this.events.onExit(exitCode, signal);
             });
 
-        } catch (error) {
-            console.error('Failed to spawn CLI process:', error);
+        } catch (error: any) {
+            console.error('[CLIManager] Failed to spawn CLI process:', error);
             this.setStatus(ConnectionStatus.ERROR);
+            if (this.events.onError) {
+                this.events.onError('spawn_error', error.message || 'Unknown spawn error');
+            }
         }
     }
 
@@ -392,10 +415,23 @@ export class CLIManager {
     private setupParserEvents(): void {
         this.parser.on('assistantText', (text: string, isStreaming: boolean) => {
             console.log('[CLIManager] Parser: assistantText', text.substring(0, 100));
+            if (this.events.onAssistantText) {
+                this.events.onAssistantText(text, isStreaming, this.parser.getAccumulatedText());
+            }
         });
 
         this.parser.on('toolUse', (name: string, id: string, input: Record<string, unknown>) => {
             console.log('[CLIManager] Parser: toolUse', name, id);
+            if (this.events.onToolUse) {
+                this.events.onToolUse(name, id, input);
+            }
+        });
+
+        this.parser.on('toolResult', (toolUseId: string, content: string, isError: boolean) => {
+            console.log('[CLIManager] Parser: toolResult', toolUseId, isError);
+            if (this.events.onToolResult) {
+                this.events.onToolResult(toolUseId, content, isError);
+            }
         });
 
         this.parser.on('error', (type: string, message: string) => {
@@ -404,14 +440,14 @@ export class CLIManager {
 
         this.parser.on('complete', (result: string, usage?: { input: number; output: number }) => {
             console.log('[CLIManager] Parser: complete', usage);
-            
+
             const agentId = this.currentAgentId;
             const agent = this.agentPool.get(agentId);
-            
+
             // Handle agent completion for non-main agents
             if (agentId !== this.mainAgentId && agent) {
                 agent.status = 'complete';
-                
+
                 // Generate completion report
                 const report = {
                     agentId,
@@ -421,32 +457,32 @@ export class CLIManager {
                     filesModified: agent.context.lockedFiles,
                     duration: Date.now() - agent.startTime
                 };
-                
+
                 console.log('[CLIManager] Agent completed:', report);
-                
+
                 // Notify via event
                 if (this.events.onAgentComplete) {
                     this.events.onAgentComplete(report);
                 }
-                
+
                 // Update workforce sync status
                 this.workforceSync.updateAgentStatus(agentId, 'complete').catch(err => {
                     console.error('[CLIManager] Failed to update agent status:', err);
                 });
-                
+
                 // Auto-terminate after completion
                 setTimeout(() => {
                     console.log('[CLIManager] Auto-terminating completed agent:', agentId);
                     this.terminateAgent(agentId);
                 }, 2000); // 2s delay to allow final output to be processed
             }
-            
+
             // If loop is active and promise wasn't detected, continue loop
             if (this.loopActive) {
                 setTimeout(() => this.runLoopIteration(), 1000); // 1s delay between iterations
             }
         });
-        
+
         this.parser.on('promiseDetected', (promise: string) => {
             console.log('[CLIManager] Promise detected:', promise);
             if (this.loopActive) {
@@ -456,6 +492,10 @@ export class CLIManager {
                     this.events.onLoopComplete('promise');
                 }
             }
+        });
+
+        this.parser.on('raw', (line: string) => {
+            console.log(`[CLIManager] Raw Parser Output: ${line}`);
         });
     }
 
@@ -494,31 +534,68 @@ export class CLIManager {
         const executable = this.config.executable;
         const args = ['models', '--output-format', 'json'];
 
-        console.log('[CLIManager] Background refreshing models:', executable, args.join(' '));
+        console.log('[CLIManager] Background refreshing models using spawn:', executable, args.join(' '));
 
-        exec(`${executable} ${args.join(' ')}`, {
-            env: this.config.env as any,
-            timeout: 15000
-        }, async (error, stdout, stderr) => {
-            this.isRefreshingModels = false;
+        try {
+            const child = spawn(executable, args, {
+                env: { ...this.config.env, CLAUDE_CONFIG_DIR: path.join(app.getPath('home'), '.claude') } as any,
+                shell: false
+            });
 
-            if (error) {
-                console.error('[CLIManager] Background refresh failed:', error);
-                return;
-            }
+            let stdout = '';
+            let stderr = '';
 
-            try {
-                const models = JSON.parse(stdout);
-                await this.writeModelsCache(models);
-                console.log('[CLIManager] Models cache updated background');
+            const timeoutId = setTimeout(() => {
+                console.warn('[CLIManager] Model refresh timed out, killing process');
+                child.kill('SIGKILL');
+            }, 10000);
 
-                if (this.events.onModelsUpdated) {
-                    this.events.onModelsUpdated(models);
+            child.stdout.on('data', (data) => {
+                stdout += data.toString();
+            });
+
+            child.stderr.on('data', (data) => {
+                stderr += data.toString();
+            });
+
+            child.on('close', async (code) => {
+                clearTimeout(timeoutId);
+                this.isRefreshingModels = false;
+
+                if (code !== 0) {
+                    console.warn(`[CLIManager] Model refresh exited with code ${code}. Stderr: ${stderr}`);
+                    return;
                 }
-            } catch (err) {
-                console.error('[CLIManager] Failed to parse background models output:', err);
-            }
-        });
+
+                try {
+                    const trimmed = stdout.trim();
+                    const jsonStart = trimmed.indexOf('[');
+                    if (jsonStart === -1) {
+                        console.warn('[CLIManager] No JSON array found in models output. Raw:', trimmed.substring(0, 100));
+                        return;
+                    }
+                    const jsonContent = trimmed.substring(jsonStart);
+                    const models = JSON.parse(jsonContent);
+                    await this.writeModelsCache(models);
+                    console.log(`[CLIManager] Models cache updated background (${models.length} models)`);
+
+                    if (this.events.onModelsUpdated) {
+                        this.events.onModelsUpdated(models);
+                    }
+                } catch (err) {
+                    console.error('[CLIManager] Failed to parse background models output:', err);
+                }
+            });
+
+            child.on('error', (err) => {
+                clearTimeout(timeoutId);
+                this.isRefreshingModels = false;
+                console.error('[CLIManager] Failed to spawn model refresh process:', err);
+            });
+        } catch (error) {
+            this.isRefreshingModels = false;
+            console.error('[CLIManager] Error during model refresh setup:', error);
+        }
     }
 
     private async readModelsCache(): Promise<{ lastUpdated: number; models: any[] } | null> {
@@ -552,10 +629,10 @@ export class CLIManager {
         this.loopMaxIterations = maxIterations;
         this.loopCurrentIteration = 0;
         this.loopActive = true;
-        
+
         // Set promise pattern in parser
         this.parser.setPromisePattern(completionPromise);
-        
+
         // Start first iteration
         this.runLoopIteration();
     }
@@ -571,9 +648,9 @@ export class CLIManager {
 
     private runLoopIteration(): void {
         if (!this.loopActive || !this.loopPrompt) return;
-        
+
         this.loopCurrentIteration++;
-        
+
         if (this.loopCurrentIteration > this.loopMaxIterations) {
             this.loopActive = false;
             this.parser.setPromisePattern(null);
@@ -582,11 +659,11 @@ export class CLIManager {
             }
             return;
         }
-        
+
         if (this.events.onLoopIteration) {
             this.events.onLoopIteration(this.loopCurrentIteration, this.loopMaxIterations);
         }
-        
+
         // Send the loop prompt
         this.sendMessage(this.loopPrompt);
     }
@@ -601,12 +678,12 @@ export class CLIManager {
 
     public setMcpConfigPath(path: string | null): void {
         this.mcpConfigPath = path;
-        
+
         // Rebuild args array with or without MCP config
         const baseArgs = ['-p', '--output-format', 'stream-json', '--verbose'];
         const mcpArgs = this.mcpConfigPath ? ['--mcp-config', this.mcpConfigPath] : [];
         this.config.args = [...baseArgs, ...mcpArgs];
-        
+
         console.log('[CLIManager] MCP config path updated:', this.mcpConfigPath);
         console.log('[CLIManager] CLI args:', this.config.args.join(' '));
     }
@@ -636,12 +713,18 @@ export class CLIManager {
             clearInterval(agent.resourceInterval);
         }
 
-        // Monitor resources every 2 seconds
-        agent.resourceInterval = setInterval(() => {
-            this.monitorAgentResources(agentId);
-        }, 2000);
+        // Delay first monitoring to let PTY stabilize and avoid EBADF
+        setTimeout(() => {
+            const currentAgent = this.agentPool.get(agentId);
+            if (!currentAgent || currentAgent.status === 'complete' || currentAgent.status === 'error') return;
 
-        console.log('[CLIManager] Started resource monitoring for agent:', agentId);
+            // Monitor resources every 2 seconds
+            currentAgent.resourceInterval = setInterval(() => {
+                this.monitorAgentResources(agentId);
+            }, 2000);
+
+            console.log('[CLIManager] Started resource monitoring for agent:', agentId);
+        }, 1000);
     }
 
     private stopResourceMonitoring(agentId: string): void {
@@ -662,14 +745,15 @@ export class CLIManager {
 
         try {
             // Use ps command to get CPU and memory usage
-            const { exec } = await import('child_process');
-            const util = await import('util');
-            const execPromise = util.promisify(exec);
-
-            // Get CPU percentage and memory in KB
-            const { stdout } = await execPromise(`ps -p ${agent.pid} -o %cpu,rss`);
+            // Use callback-based exec to avoid EBADF issues in Electron
+            const stdout = await new Promise<string>((resolve, reject) => {
+                exec(`ps -p ${agent.pid} -o %cpu,rss`, (error, stdout) => {
+                    if (error) reject(error);
+                    else resolve(stdout);
+                });
+            });
             const lines = stdout.trim().split('\n');
-            
+
             if (lines.length > 1) {
                 const values = lines[1].trim().split(/\s+/);
                 const cpu = parseFloat(values[0]) || 0;
@@ -685,10 +769,14 @@ export class CLIManager {
                     });
                 }
             }
-        } catch (error) {
-            // Process might have exited, stop monitoring
-            console.log('[CLIManager] Failed to monitor resources for agent:', agentId, error);
-            this.stopResourceMonitoring(agentId);
+        } catch (error: any) {
+            // Only stop monitoring if process actually exited (ESRCH) or doesn't exist
+            // EBADF can be transient in Electron, so just log and continue
+            if (error?.code === 'ESRCH' || error?.message?.includes('No such process')) {
+                console.log('[CLIManager] Process exited, stopping resource monitoring for agent:', agentId);
+                this.stopResourceMonitoring(agentId);
+            }
+            // Silently ignore other errors (EBADF, etc.) - they're often transient
         }
     }
 
@@ -699,7 +787,7 @@ export class CLIManager {
                 agent.pty.kill();
             }
             this.stopResourceMonitoring(agentId);
-            
+
             // Unregister from workforce sync
             this.workforceSync.unregisterAgent(agentId).catch(err => {
                 console.error('[CLIManager] Failed to unregister agent during killAll:', err);

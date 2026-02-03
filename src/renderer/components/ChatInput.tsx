@@ -504,7 +504,7 @@ ${percentageNum > 80 ? '⚠️ Context is nearly full. Consider using /compact t
                     <button
                         onClick={() => setMode('chat')}
                         className={`flex items-center space-x-1.5 px-2 py-1 rounded-md transition-all ${agent.mode === 'chat'
-                            ? 'bg-nexus-accent text-white shadow-sm'
+                            ? 'bg-nexus-accent text-green-500 shadow-sm'
                             : 'text-nexus-fg-muted hover:text-nexus-fg-secondary'
                             }`}
                     >
@@ -514,7 +514,7 @@ ${percentageNum > 80 ? '⚠️ Context is nearly full. Consider using /compact t
                     <button
                         onClick={() => setMode('code')}
                         className={`flex items-center space-x-1.5 px-2 py-1 rounded-md transition-all ${agent.mode === 'code'
-                            ? 'bg-nexus-accent text-white shadow-sm'
+                            ? 'bg-nexus-accent text-green-500 shadow-sm'
                             : 'text-nexus-fg-muted hover:text-nexus-fg-secondary'
                             }`}
                     >

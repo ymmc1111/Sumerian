@@ -49,7 +49,8 @@ export class CLIOutputParser extends EventEmitter {
             const msg = JSON.parse(line) as CLIMessage;
             this.handleMessage(msg);
         } catch {
-            // Not valid JSON - ignore (could be ANSI escape sequences, etc.)
+            // Not valid JSON - might be an error or a prompt
+            this.emit('raw', line);
         }
     }
 
@@ -74,7 +75,7 @@ export class CLIOutputParser extends EventEmitter {
         if (isTextContent(block)) {
             this.accumulatedText += block.text;
             this.emit('assistantText', block.text, true);
-            
+
             // Check for completion promise
             if (this.promisePattern && this.promisePattern.test(this.accumulatedText)) {
                 const match = this.accumulatedText.match(this.promisePattern);
@@ -110,7 +111,7 @@ export class CLIOutputParser extends EventEmitter {
     }
 
     public setPromisePattern(promise: string | null): void {
-        this.promisePattern = promise 
+        this.promisePattern = promise
             ? new RegExp(`<promise>${promise}</promise>|\\b${promise}\\b`, 'i')
             : null;
     }

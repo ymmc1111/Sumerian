@@ -151,6 +151,7 @@ export interface AgentState {
     loopConfig: LoopConfig | null;
     loopIteration: number;
     autopilotMode: boolean;
+    isInitialized: boolean;
 }
 
 export interface CLIModel {
@@ -197,6 +198,17 @@ export interface ProjectState {
     rootPath: string | null;
     fileTree: FileNode[];
     recentProjects: string[];
+    expandedPaths: string[];
+}
+
+export interface ProjectActions {
+    setRootPath: (path: string | null) => Promise<void>;
+    setFileTree: (tree: FileNode[]) => void;
+    refreshFileTree: () => Promise<void>;
+    selectProject: () => Promise<void>;
+    loadRecentProjects: () => Promise<void>;
+    togglePathExpanded: (path: string) => void;
+    setPathExpanded: (path: string, expanded: boolean) => void;
 }
 
 export interface EditorGroup {
@@ -246,6 +258,9 @@ export interface AppState {
     refreshFileTree: () => Promise<void>;
     selectProject: () => Promise<void>;
     loadRecentProjects: () => Promise<void>;
+    togglePathExpanded: (path: string) => void;
+    setPathExpanded: (path: string, expanded: boolean) => void;
+    loadDirectoryChildren: (path: string) => Promise<void>;
 
     // Editor Actions
     openFile: (path: string, groupId?: string) => Promise<void>;
@@ -302,7 +317,7 @@ export interface AppState {
     approveDelegation: () => Promise<void>;
     rejectDelegation: () => void;
     revertAgent: (agentId: string) => Promise<boolean>;
-    
+
     // Task Queue Actions
     addTaskToQueue: (task: QueuedTask) => void;
     removeTaskFromQueue: (taskId: string) => void;

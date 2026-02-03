@@ -11,7 +11,7 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ slotId = 'A' }) => {
-    const { project, selectProject, toggleSettings, ui, setSidebarActiveTab } = useAppStore();
+    const { project, selectProject, setRootPath, toggleSettings, ui, setSidebarActiveTab } = useAppStore();
     const activeTab = ui.sidebarActiveTab;
 
     return (
@@ -22,15 +22,24 @@ const Sidebar: React.FC<SidebarProps> = ({ slotId = 'A' }) => {
                 slotId={slotId}
                 icon={activeTab === 'explorer' ? <FolderOpen className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
                 actions={
-                    activeTab === 'explorer' ? (
+                    <div className="flex items-center gap-1">
+                        {activeTab === 'explorer' && (
+                            <button
+                                onClick={selectProject}
+                                className="icon-btn"
+                                title="Open Folder"
+                            >
+                                <FolderOpen className="w-4 h-4" />
+                            </button>
+                        )}
                         <button
-                            onClick={selectProject}
-                            className="icon-btn"
-                            title="Open Folder"
+                            onClick={() => setRootPath(null)}
+                            className="p-1.5 rounded-lg hover:bg-nexus-bg-accent text-nexus-fg-muted hover:text-red-400 transition-colors"
+                            title="Close Project"
                         >
-                            <FolderOpen className="w-4 h-4" />
+                            <span className="text-[10px] font-bold">ESC</span>
                         </button>
-                    ) : null
+                    </div>
                 }
             />
 
@@ -39,8 +48,8 @@ const Sidebar: React.FC<SidebarProps> = ({ slotId = 'A' }) => {
                 <button
                     onClick={() => setSidebarActiveTab('explorer')}
                     className={`flex-1 flex items-center justify-center gap-2 px-3 h-full text-xs font-medium transition-colors ${activeTab === 'explorer'
-                            ? 'text-nexus-fg-primary bg-nexus-bg-secondary border-b-2 border-nexus-accent'
-                            : 'text-nexus-fg-muted hover:text-nexus-fg-secondary hover:bg-nexus-bg-tertiary'
+                        ? 'text-nexus-fg-primary bg-nexus-bg-secondary border-b-2 border-nexus-accent'
+                        : 'text-nexus-fg-muted hover:text-nexus-fg-secondary hover:bg-nexus-bg-tertiary'
                         }`}
                 >
                     <FolderOpen className="w-3.5 h-3.5" />
@@ -49,8 +58,8 @@ const Sidebar: React.FC<SidebarProps> = ({ slotId = 'A' }) => {
                 <button
                     onClick={() => setSidebarActiveTab('workforce')}
                     className={`flex-1 flex items-center justify-center gap-2 px-3 h-full text-xs font-medium transition-colors ${activeTab === 'workforce'
-                            ? 'text-nexus-fg-primary bg-nexus-bg-secondary border-b-2 border-nexus-accent'
-                            : 'text-nexus-fg-muted hover:text-nexus-fg-secondary hover:bg-nexus-bg-tertiary'
+                        ? 'text-nexus-fg-primary bg-nexus-bg-secondary border-b-2 border-nexus-accent'
+                        : 'text-nexus-fg-muted hover:text-nexus-fg-secondary hover:bg-nexus-bg-tertiary'
                         }`}
                 >
                     <Bot className="w-3.5 h-3.5" />

@@ -14,8 +14,10 @@ export class FileService implements IFileService {
     private snapshotManager: SnapshotManager | null = null;
     private undoManager: UndoManager = new UndoManager();
     private auditLogger: AuditLogger = new AuditLogger();
+    private projectRoot: string = ''; // Added to store project root for _list
 
     public setProjectRoot(projectRoot: string) {
+        this.projectRoot = projectRoot; // Store project root
         this.sandboxValidator = new SandboxValidator(projectRoot);
         this.snapshotManager = new SnapshotManager(projectRoot);
     }
@@ -128,11 +130,26 @@ export class FileService implements IFileService {
 
     private async _list(dirPath: string): Promise<FileEntry[]> {
         try {
-            if (!existsSync(dirPath)) {
+            if (!this.sandboxValidator) {
+                throw new Error('SandboxValidator not initialized. Call setProjectRoot first.');
+            }
+
+            let absolutePath = path.isAbsolute(dirPath) ? dirPath : path.resolve(this.projectRoot, dirPath);
+            console.log(`[FileService] Listing directory: ${absolutePath} (root: ${this.projectRoot})`);
+
+            const validation = this.sandboxValidator.validateAccess(absolutePath);
+            if (!validation.allowed) {
+                console.error(`[FileService] Sandbox violation: ${absolutePath}. Reason: ${validation.reason}`);
                 return [];
             }
 
-            const entries = await fs.readdir(dirPath, { withFileTypes: true });
+            if (!existsSync(absolutePath)) {
+                console.warn(`[FileService] Path does not exist: ${absolutePath}`);
+                return [];
+            }
+
+            const entries = await fs.readdir(absolutePath, { withFileTypes: true });
+            console.log(`[FileService] Found ${entries.length} entries in ${absolutePath}`);
             const result: FileEntry[] = [];
 
             for (const entry of entries) {
@@ -152,14 +169,15 @@ export class FileService implements IFileService {
                 });
             }
 
+            console.log(`[FileService] Returning ${result.length} entries for ${absolutePath} (after filtering)`);
             return result.sort((a, b) => {
                 if (a.isDirectory === b.isDirectory) {
                     return a.name.localeCompare(b.name);
                 }
                 return a.isDirectory ? -1 : 1;
             });
-        } catch (error) {
-            console.error(`Error listing directory ${dirPath}:`, error);
+        } catch (error: any) {
+            console.error(`[FileService] Error listing directory ${dirPath}:`, error.message);
             throw error;
         }
     }

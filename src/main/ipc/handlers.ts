@@ -21,7 +21,7 @@ import { cliSessionManager } from '../projects/CLISessionManager';
 const fileService = new FileService();
 const credentialManager = new CredentialManager();
 const oauthBridge = new OAuthBridge();
-const terminalManager = new TerminalManager();
+export const terminalManager = new TerminalManager();
 
 // Legacy - now handled by ProjectManager
 // const RECENT_PROJECTS_FILE = path.join(app.getPath('home'), '.sumerian', 'recent-projects.json');
@@ -301,7 +301,17 @@ export function setupHandlers() {
     ipcMain.handle('session:load', async (_event, id: string) => {
         const sessionManager = getActiveSessionManager();
         if (!sessionManager) return null;
-        return await sessionManager.loadSession(id);
+        const session = await sessionManager.loadSession(id);
+
+        // Sync CLIManager state with loaded session
+        if (session && session.messages && session.messages.length > 0) {
+            const cliManager = getActiveCLIManager();
+            if (cliManager) {
+                cliManager.setHasExistingSession(true);
+            }
+        }
+
+        return session;
     });
 
     ipcMain.handle('session:getLatestId', async () => {
@@ -384,6 +394,11 @@ export function setupHandlers() {
                         win.webContents.send('workforce:agent-complete', report);
                     }
                 });
+            },
+            onError: (type, message) => {
+                if (!webContents.isDestroyed()) {
+                    webContents.send('cli:status', { status: 'error', type, message });
+                }
             }
         });
 
@@ -394,6 +409,7 @@ export function setupHandlers() {
         const parser = session.cliManager.getParser();
 
         parser.on('assistantText', (text: string, isStreaming: boolean) => {
+            console.log('[IPC] Sending assistant message to renderer:', text.substring(0, 50));
             // Broadcast to all windows (main + detached)
             BrowserWindow.getAllWindows().forEach(win => {
                 if (!win.isDestroyed()) {
@@ -706,7 +722,7 @@ export function setupHandlers() {
     ipcMain.handle('audit:stream', async (event) => {
         // Stream audit log updates to renderer
         const auditLogPath = path.join(app.getPath('home'), '.sumerian', 'audit.log');
-        
+
         // Watch for changes to audit log
         const watcher = chokidar.watch(auditLogPath, {
             persistent: true,
@@ -718,7 +734,7 @@ export function setupHandlers() {
                 const content = await fs.readFile(auditLogPath, 'utf-8');
                 const lines = content.trim().split('\n').filter(line => line);
                 const logs = lines.map(line => JSON.parse(line));
-                
+
                 if (!event.sender.isDestroyed()) {
                     event.sender.send('audit:update', logs);
                 }
@@ -740,7 +756,7 @@ export function setupHandlers() {
         try {
             const docsDir = path.join(app.getAppPath(), 'docs');
             const fullPath = path.join(docsDir, docPath);
-            
+
             // Security: ensure path is within docs directory
             const normalizedPath = path.normalize(fullPath);
             if (!normalizedPath.startsWith(docsDir)) {

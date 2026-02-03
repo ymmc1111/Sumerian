@@ -8,11 +8,12 @@ export interface SumerianAPI {
         getStatus: () => Promise<string>;
         onOutput: (callback: (output: any) => void) => () => void;
         onStatusChange: (callback: (status: any) => void) => () => void;
-        onExit: (callback: (info: any) => void) => () => void;
+        onExit: (callback: (info: { exitCode: number; signal?: number }) => void) => () => void;
         updateActiveFileContext: (path: string | null) => Promise<void>;
         onAssistantMessage: (callback: (data: { text: string; isStreaming: boolean }) => void) => () => void;
         onToolAction: (callback: (data: { type: 'use' | 'result'; name?: string; id: string; input?: Record<string, unknown>; content?: string; isError?: boolean }) => void) => () => void;
         onAgentStatus: (callback: (data: { status: string; result?: string; usage?: { input: number; output: number }; type?: string; message?: string }) => void) => () => void;
+        onError: (callback: (type: string, message: string) => void) => () => void;
         setModel: (model: string) => Promise<boolean>;
         setMaxBudgetUsd: (budget: number | null) => Promise<boolean>;
         setMcpConfigPath: (path: string | null) => Promise<boolean>;

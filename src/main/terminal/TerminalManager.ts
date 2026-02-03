@@ -14,13 +14,20 @@ export class TerminalManager {
 
         const shell = os.platform() === 'win32' ? 'powershell.exe' : process.env.SHELL || 'bash';
 
-        const ptyProcess = pty.spawn(shell, [], {
-            name: 'xterm-color',
-            cols: 80,
-            rows: 24,
-            cwd,
-            env: process.env as any
-        });
+        let ptyProcess: pty.IPty;
+        try {
+            console.log(`[TerminalManager] Spawning terminal: ${shell} in ${cwd}`);
+            ptyProcess = pty.spawn(shell, [], {
+                name: 'xterm-color',
+                cols: 80,
+                rows: 24,
+                cwd,
+                env: process.env as any
+            });
+        } catch (err) {
+            console.error('[TerminalManager] Failed to spawn terminal:', err);
+            return;
+        }
 
         // Broadcast data to ALL windows - each window's renderer will filter by terminal ID
         ptyProcess.onData((data) => {

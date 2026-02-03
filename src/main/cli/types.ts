@@ -79,4 +79,8 @@ export interface CLIManagerEvents {
     onAgentComplete?: (report: AgentCompletionReport) => void;
     onAgentOutput?: (agentId: string, output: CLIOutput) => void;
     onResourceUpdate?: (update: ResourceUpdate) => void;
+    onAssistantText?: (text: string, isStreaming: boolean, accumulatedText: string) => void;
+    onToolUse?: (name: string, id: string, input: Record<string, unknown>) => void;
+    onToolResult?: (toolUseId: string, content: string, isError: boolean) => void;
+    onError?: (type: string, message: string) => void;
 }

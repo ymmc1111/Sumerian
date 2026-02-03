@@ -34,6 +34,11 @@ contextBridge.exposeInMainWorld('sumerian', {
             ipcRenderer.on('cli:status', (_event, value) => callback(value));
             return () => ipcRenderer.removeAllListeners('cli:status');
         },
+        onError: (callback: (type: string, message: string) => void) => {
+            const handler = (_event: any, data: any) => callback(data.type, data.message);
+            ipcRenderer.on('cli:error', handler);
+            return () => ipcRenderer.removeListener('cli:error', handler);
+        },
         setModel: (model: string) => ipcRenderer.invoke('cli:setModel', model),
         setMaxBudgetUsd: (budget: number | null) => ipcRenderer.invoke('cli:setMaxBudgetUsd', budget),
         setMcpConfigPath: (path: string | null) => ipcRenderer.invoke('cli:setMcpConfigPath', path),
@@ -46,7 +51,7 @@ contextBridge.exposeInMainWorld('sumerian', {
             ipcRenderer.on('cli:models-updated', (_event, value) => callback(value));
             return () => ipcRenderer.removeAllListeners('cli:models-updated');
         },
-        startLoop: (prompt: string, completionPromise: string, maxIterations: number) => 
+        startLoop: (prompt: string, completionPromise: string, maxIterations: number) =>
             ipcRenderer.invoke('cli:start-loop', prompt, completionPromise, maxIterations),
         cancelLoop: () => ipcRenderer.invoke('cli:cancel-loop'),
         onLoopIteration: (callback: (data: { iteration: number; max: number }) => void) => {
@@ -57,7 +62,7 @@ contextBridge.exposeInMainWorld('sumerian', {
             ipcRenderer.on('cli:loop-complete', (_event, value) => callback(value));
             return () => ipcRenderer.removeAllListeners('cli:loop-complete');
         },
-        spawnAgent: (persona: any, task: string, workingDir?: string) => 
+        spawnAgent: (persona: any, task: string, workingDir?: string) =>
             ipcRenderer.invoke('cli:spawn-agent', { persona, task, workingDir }),
         terminateAgent: (agentId: string) => ipcRenderer.invoke('cli:terminate-agent', agentId),
         getAgent: (agentId: string) => ipcRenderer.invoke('cli:get-agent', agentId),

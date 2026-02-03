@@ -20,6 +20,7 @@ import ProjectSwitcher from './components/ProjectSwitcher';
 import DocsViewer from './components/DocsViewer';
 import ScanlineOverlay from './components/ScanlineOverlay';
 import DetachedPanelWindow from './components/DetachedPanelWindow';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { PanelSlotId, PanelType } from './types/layout';
 
 // Check if this is a detached panel window
@@ -66,8 +67,22 @@ const App: React.FC = () => {
         detachedPanels.some(p => p.panelType === panelType);
 
     React.useEffect(() => {
-        init();
+        const interval = setInterval(() => {
+            const state = useAppStore.getState();
+            console.log('[App Health Check]', {
+                rootPath: state.project.rootPath,
+                fileTreeNodes: state.project.fileTree.length,
+                isInitialized: state.agent.isInitialized,
+                activePanel: state.ui.activePanel,
+                sumerianExists: typeof window.sumerian !== 'undefined'
+            });
+        }, 5000);
 
+        init();
+        return () => clearInterval(interval);
+    }, []);
+
+    React.useEffect(() => {
         // Only listen for panel closed events in main window (not in detached panels)
         if (!detachedInfo) {
             const cleanupPanelClosed = window.sumerian.window.onPanelClosed((data: { id: string; panelType: string }) => {
@@ -157,29 +172,24 @@ const App: React.FC = () => {
 
     // If this is a detached panel window, render only that panel
     if (detachedInfo) {
-        // Check if preload script loaded correctly
         if (typeof window.sumerian === 'undefined') {
             return (
-                <div style={{ 
-                    backgroundColor: '#0a0a0a', 
-                    color: '#ff4444', 
-                    height: '100vh', 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    justifyContent: 'center',
-                    flexDirection: 'column',
-                    gap: '10px'
-                }}>
-                    <div>Error: Preload script not loaded</div>
-                    <div style={{ fontSize: '12px', color: '#888' }}>window.sumerian is undefined</div>
+                <div className="h-screen w-screen bg-black text-red-500 flex items-center justify-center p-8 text-center flex-col gap-4">
+                    <div className="text-xl font-bold">API Not Found</div>
+                    <div className="text-sm opacity-50">The Sumerian bridge is missing. Please restart the application.</div>
                 </div>
             );
         }
+        return <DetachedPanelWindow panelType={detachedInfo.panelType} windowId={detachedInfo.windowId} />;
+    }
+
+    // Wait for store initialization
+    const isInitialized = useAppStore(state => state.agent.isInitialized);
+    if (!isInitialized) {
         return (
-            <DetachedPanelWindow
-                panelType={detachedInfo.panelType}
-                windowId={detachedInfo.windowId}
-            />
+            <div className="flex flex-col h-screen w-screen bg-nexus-bg-primary text-nexus-fg-primary overflow-hidden font-sans select-none items-center justify-center">
+                <div className="animate-pulse text-nexus-accent text-sm font-bold tracking-widest uppercase">Initializing...</div>
+            </div>
         );
     }
 
@@ -205,108 +215,110 @@ const App: React.FC = () => {
     }
 
     return (
-        <div className="flex flex-col h-screen w-screen bg-nexus-bg-primary text-nexus-fg-primary overflow-hidden font-sans select-none">
-            <TitleBar />
+        <ErrorBoundary>
+            <div className="flex flex-col h-screen w-screen bg-nexus-bg-primary text-nexus-fg-primary overflow-hidden font-sans select-none">
+                <TitleBar />
 
-            <div className="flex-1 flex min-h-0 relative">
-                {/* Slot A - Left panel (default: sidebar) */}
-                {!isPanelDetached(slots.A.panelType) && (
-                    <div
-                        style={{
-                            width: slots.A.isCollapsed ? '4px' : `${slots.A.width}px`,
-                            transition: isDragging ? 'none' : 'width 200ms ease-out'
-                        }}
-                        className={`flex-shrink-0 relative border-r border-nexus-border ${slots.A.isCollapsed ? 'overflow-hidden' : ''} ${isDragging && targetSlotId === 'A' ? 'ring-4 ring-blue-500/50 ring-inset' : ''
-                            }`}
-                    >
-                        {!slots.A.isCollapsed && <PanelComponent panelType={slots.A.panelType} slotId="A" />}
-                        {!slots.A.isCollapsed && (
-                            <ResizeHandle slotId="A" direction="horizontal" position="right" />
-                        )}
-                    </div>
-                )}
+                <div className="flex-1 flex min-h-0 relative">
+                    {/* Slot A - Left panel (default: sidebar) */}
+                    {!isPanelDetached(slots.A.panelType) && (
+                        <div
+                            style={{
+                                width: slots.A.isCollapsed ? '4px' : `${slots.A.width}px`,
+                                transition: isDragging ? 'none' : 'width 200ms ease-out'
+                            }}
+                            className={`flex-shrink-0 relative border-r border-nexus-border ${slots.A.isCollapsed ? 'overflow-hidden' : ''} ${isDragging && targetSlotId === 'A' ? 'ring-4 ring-blue-500/50 ring-inset' : ''
+                                }`}
+                        >
+                            {!slots.A.isCollapsed && <PanelComponent panelType={slots.A.panelType} slotId="A" />}
+                            {!slots.A.isCollapsed && (
+                                <ResizeHandle slotId="A" direction="horizontal" position="right" />
+                            )}
+                        </div>
+                    )}
 
-                {/* Main Content Area */}
-                <div className="flex-1 flex flex-col min-w-0">
-                    <div className="flex-1 flex min-h-0 min-w-0 relative">
-                        {/* Slot B - Center panel (default: editor) */}
-                        {!isPanelDetached(slots.B.panelType) && (
-                            <div className={`${isPanelDetached(slots.C.panelType) ? 'flex-1' : 'flex-1'} min-w-0 relative ${isDragging && targetSlotId === 'B' ? 'ring-4 ring-blue-500/50 ring-inset' : ''
-                                }`}>
-                                <PanelComponent panelType={slots.B.panelType} slotId="B" />
-                            </div>
-                        )}
+                    {/* Main Content Area */}
+                    <div className="flex-1 flex flex-col min-w-0">
+                        <div className="flex-1 flex min-h-0 min-w-0 relative">
+                            {/* Slot B - Center panel (default: editor) */}
+                            {!isPanelDetached(slots.B.panelType) && (
+                                <div className={`${isPanelDetached(slots.C.panelType) ? 'flex-1' : 'flex-1'} min-w-0 relative ${isDragging && targetSlotId === 'B' ? 'ring-4 ring-blue-500/50 ring-inset' : ''
+                                    }`}>
+                                    <PanelComponent panelType={slots.B.panelType} slotId="B" />
+                                </div>
+                            )}
 
-                        {/* Slot C - Right panel (default: agent) */}
-                        {!isPanelDetached(slots.C.panelType) && (
+                            {/* Slot C - Right panel (default: agent) */}
+                            {!isPanelDetached(slots.C.panelType) && (
+                                <div
+                                    style={{
+                                        width: isPanelDetached(slots.B.panelType)
+                                            ? undefined
+                                            : slots.C.isCollapsed
+                                                ? '4px'
+                                                : mode === 'agent-first'
+                                                    ? '50%'
+                                                    : `${slots.C.width}px`,
+                                        transition: isDragging ? 'none' : 'width 200ms ease-out'
+                                    }}
+                                    className={`${isPanelDetached(slots.B.panelType) ? 'flex-1' : 'flex-shrink-0'} ${!isPanelDetached(slots.B.panelType) ? 'border-l border-nexus-border' : ''} relative ${slots.C.isCollapsed ? 'overflow-hidden' : ''} ${isDragging && targetSlotId === 'C' ? 'ring-4 ring-blue-500/50 ring-inset' : ''
+                                        }`}
+                                >
+                                    {!slots.C.isCollapsed && <PanelComponent panelType={slots.C.panelType} slotId="C" />}
+                                    {!slots.C.isCollapsed && !isPanelDetached(slots.B.panelType) && (
+                                        <ResizeHandle slotId="C" direction="horizontal" position="left" />
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Slot D - Bottom panel (default: terminal) */}
+                        {!isPanelDetached(slots.D.panelType) && (
                             <div
                                 style={{
-                                    width: isPanelDetached(slots.B.panelType)
-                                        ? undefined
-                                        : slots.C.isCollapsed
-                                            ? '4px'
-                                            : mode === 'agent-first'
-                                                ? '50%'
-                                                : `${slots.C.width}px`,
-                                    transition: isDragging ? 'none' : 'width 200ms ease-out'
+                                    flex: slots.D.isCollapsed ? '0 0 4px' : `${Math.max(0.1, Math.min(0.8, slots.D.height))} 0 0`,
+                                    minHeight: slots.D.isCollapsed ? '4px' : `${Math.max(0.1, Math.min(0.8, slots.D.height)) * 100}%`,
+                                    transition: isDragging ? 'none' : 'flex 200ms ease-out'
                                 }}
-                                className={`${isPanelDetached(slots.B.panelType) ? 'flex-1' : 'flex-shrink-0'} ${!isPanelDetached(slots.B.panelType) ? 'border-l border-nexus-border' : ''} relative ${slots.C.isCollapsed ? 'overflow-hidden' : ''} ${isDragging && targetSlotId === 'C' ? 'ring-4 ring-blue-500/50 ring-inset' : ''
+                                className={`flex-shrink-0 border-t border-nexus-border relative ${slots.D.isCollapsed ? 'overflow-hidden' : ''} ${isDragging && targetSlotId === 'D' ? 'ring-4 ring-blue-500/50 ring-inset' : ''
                                     }`}
                             >
-                                {!slots.C.isCollapsed && <PanelComponent panelType={slots.C.panelType} slotId="C" />}
-                                {!slots.C.isCollapsed && !isPanelDetached(slots.B.panelType) && (
-                                    <ResizeHandle slotId="C" direction="horizontal" position="left" />
+                                {!slots.D.isCollapsed && <PanelComponent panelType={slots.D.panelType} slotId="D" />}
+                                {!slots.D.isCollapsed && (
+                                    <ResizeHandle slotId="D" direction="vertical" position="top" />
                                 )}
                             </div>
                         )}
                     </div>
-
-                    {/* Slot D - Bottom panel (default: terminal) */}
-                    {!isPanelDetached(slots.D.panelType) && (
-                        <div
-                            style={{
-                                flex: slots.D.isCollapsed ? '0 0 4px' : `${Math.max(0.1, Math.min(0.8, slots.D.height))} 0 0`,
-                                minHeight: slots.D.isCollapsed ? '4px' : `${Math.max(0.1, Math.min(0.8, slots.D.height)) * 100}%`,
-                                transition: isDragging ? 'none' : 'flex 200ms ease-out'
-                            }}
-                            className={`flex-shrink-0 border-t border-nexus-border relative ${slots.D.isCollapsed ? 'overflow-hidden' : ''} ${isDragging && targetSlotId === 'D' ? 'ring-4 ring-blue-500/50 ring-inset' : ''
-                                }`}
-                        >
-                            {!slots.D.isCollapsed && <PanelComponent panelType={slots.D.panelType} slotId="D" />}
-                            {!slots.D.isCollapsed && (
-                                <ResizeHandle slotId="D" direction="vertical" position="top" />
-                            )}
-                        </div>
-                    )}
                 </div>
+                <SettingsModal />
+                <CommandPalette />
+                <ShortcutsHelp />
+                <ProjectSwitcher
+                    isOpen={ui.isProjectSwitcherOpen}
+                    onClose={toggleProjectSwitcher}
+                />
+                <DocsViewer
+                    isOpen={ui.isDocsViewerOpen}
+                    onClose={toggleDocsViewer}
+                    initialDocId={ui.activeDocId}
+                />
+                <ScanlineOverlay />
+
+                {/* Ghost Frame for drag preview */}
+                <GhostFrame
+                    snapTarget={dragState.snapTarget}
+                    isVisible={isDragging}
+                />
+
+                {/* Cursor-following drag ghost */}
+                <DragGhost
+                    panelType={dragState.panelType}
+                    position={dragState.currentPoint}
+                    isVisible={isDragging}
+                />
             </div>
-            <SettingsModal />
-            <CommandPalette />
-            <ShortcutsHelp />
-            <ProjectSwitcher
-                isOpen={ui.isProjectSwitcherOpen}
-                onClose={toggleProjectSwitcher}
-            />
-            <DocsViewer
-                isOpen={ui.isDocsViewerOpen}
-                onClose={toggleDocsViewer}
-                initialDocId={ui.activeDocId}
-            />
-            <ScanlineOverlay />
-
-            {/* Ghost Frame for drag preview */}
-            <GhostFrame
-                snapTarget={dragState.snapTarget}
-                isVisible={isDragging}
-            />
-
-            {/* Cursor-following drag ghost */}
-            <DragGhost
-                panelType={dragState.panelType}
-                position={dragState.currentPoint}
-                isVisible={isDragging}
-            />
-        </div>
+        </ErrorBoundary>
     );
 };
 
