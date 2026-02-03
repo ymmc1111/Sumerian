@@ -161,6 +161,14 @@ export const DetachedPanelWindow: React.FC<DetachedPanelWindowProps> = ({
       });
     });
 
+    // Sidebar tab sync
+    const cleanupSidebarTab = window.sumerian.state.onSync('sidebar:tab', (data: { tab: 'explorer' | 'workforce' }) => {
+      const { ui } = useAppStore.getState();
+      useAppStore.setState({
+        ui: { ...ui, sidebarActiveTab: data.tab }
+      });
+    });
+
     return () => {
       cleanupEditorContent();
       cleanupEditorClose();
@@ -173,6 +181,7 @@ export const DetachedPanelWindow: React.FC<DetachedPanelWindowProps> = ({
       cleanupTerminalCreate();
       cleanupTerminalClose();
       cleanupTerminalActive();
+      cleanupSidebarTab();
     };
   }, [init]);
 

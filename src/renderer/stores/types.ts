@@ -165,12 +165,15 @@ export interface TerminalInstance {
     name: string;
 }
 
+export type SidebarTab = 'explorer' | 'workforce';
+
 export interface UIState {
     sidebarWidth: number;
     agentPanelWidth: number;
     terminalHeight: number;
     isTerminalVisible: boolean;
     activePanel: 'editor' | 'agent' | 'terminal';
+    sidebarActiveTab: SidebarTab;
     isCommandPaletteOpen: boolean;
     isShortcutsHelpOpen: boolean;
     isProjectSwitcherOpen: boolean;
@@ -235,6 +238,7 @@ export interface AppState {
     openDocsWithTopic: (docId: string) => void;
     updateSettings: (settings: Partial<UIState['settings']>) => void;
     toggleSettings: () => void;
+    setSidebarActiveTab: (tab: SidebarTab) => void;
 
     // Project Actions
     setRootPath: (path: string | null) => Promise<void>;

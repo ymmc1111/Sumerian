@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import FileTree from '../components/FileTree';
 import WorkforcePanel from './WorkforcePanel';
 import { useAppStore } from '../stores/useAppStore';
@@ -10,11 +10,9 @@ interface SidebarProps {
     slotId?: PanelSlotId;
 }
 
-type SidebarTab = 'explorer' | 'workforce';
-
 const Sidebar: React.FC<SidebarProps> = ({ slotId = 'A' }) => {
-    const { project, selectProject, toggleSettings } = useAppStore();
-    const [activeTab, setActiveTab] = useState<SidebarTab>('explorer');
+    const { project, selectProject, toggleSettings, ui, setSidebarActiveTab } = useAppStore();
+    const activeTab = ui.sidebarActiveTab;
 
     return (
         <div className="w-full h-full bg-nexus-bg-secondary flex flex-col">
@@ -39,7 +37,7 @@ const Sidebar: React.FC<SidebarProps> = ({ slotId = 'A' }) => {
             {/* Tab Bar */}
             <div className="flex h-10 border-b border-nexus-border bg-nexus-bg-primary">
                 <button
-                    onClick={() => setActiveTab('explorer')}
+                    onClick={() => setSidebarActiveTab('explorer')}
                     className={`flex-1 flex items-center justify-center gap-2 px-3 h-full text-xs font-medium transition-colors ${activeTab === 'explorer'
                             ? 'text-nexus-fg-primary bg-nexus-bg-secondary border-b-2 border-nexus-accent'
                             : 'text-nexus-fg-muted hover:text-nexus-fg-secondary hover:bg-nexus-bg-tertiary'
@@ -49,7 +47,7 @@ const Sidebar: React.FC<SidebarProps> = ({ slotId = 'A' }) => {
                     <span>Explorer</span>
                 </button>
                 <button
-                    onClick={() => setActiveTab('workforce')}
+                    onClick={() => setSidebarActiveTab('workforce')}
                     className={`flex-1 flex items-center justify-center gap-2 px-3 h-full text-xs font-medium transition-colors ${activeTab === 'workforce'
                             ? 'text-nexus-fg-primary bg-nexus-bg-secondary border-b-2 border-nexus-accent'
                             : 'text-nexus-fg-muted hover:text-nexus-fg-secondary hover:bg-nexus-bg-tertiary'

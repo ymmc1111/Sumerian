@@ -11,6 +11,7 @@ export const useAppStore = create<AppState>()(
                 terminalHeight: 200,
                 isTerminalVisible: true,
                 activePanel: 'editor' as const,
+                sidebarActiveTab: 'explorer' as const,
                 isCommandPaletteOpen: false,
                 isShortcutsHelpOpen: false,
                 isProjectSwitcherOpen: false,
@@ -137,6 +138,13 @@ export const useAppStore = create<AppState>()(
                 set((state) => ({ ui: { ...state.ui, settings: { ...state.ui.settings, ...settings } } })),
             toggleSettings: () =>
                 set((state) => ({ ui: { ...state.ui, settings: { ...state.ui.settings, isSettingsOpen: !state.ui.settings.isSettingsOpen } } })),
+            setSidebarActiveTab: (tab) => {
+                set((state) => ({ ui: { ...state.ui, sidebarActiveTab: tab } }));
+                // Broadcast to other windows
+                if (typeof window !== 'undefined' && window.sumerian?.state?.broadcast) {
+                    window.sumerian.state.broadcast('sidebar:tab', { tab });
+                }
+            },
 
             // Project Actions
             setRootPath: async (path) => {

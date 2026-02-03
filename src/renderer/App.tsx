@@ -129,6 +129,14 @@ const App: React.FC = () => {
                 });
             });
 
+            // Sidebar tab sync from detached windows
+            const cleanupSidebarTab = window.sumerian.state.onSync('sidebar:tab', (data: { tab: 'explorer' | 'workforce' }) => {
+                const { ui } = useAppStore.getState();
+                useAppStore.setState({
+                    ui: { ...ui, sidebarActiveTab: data.tab }
+                });
+            });
+
             // Listen for resource updates from agents
             const cleanupResourceUpdate = window.sumerian.cli.onResourceUpdate((data: { agentId: string; cpu: number; memory: number }) => {
                 useAppStore.getState().updateAgentResources(data.agentId, data.cpu, data.memory);
@@ -141,6 +149,7 @@ const App: React.FC = () => {
                 cleanupAgentStatus();
                 cleanupAgentClear();
                 cleanupAgentSessionLoaded();
+                cleanupSidebarTab();
                 cleanupResourceUpdate();
             };
         }
