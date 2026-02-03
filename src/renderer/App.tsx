@@ -148,6 +148,24 @@ const App: React.FC = () => {
 
     // If this is a detached panel window, render only that panel
     if (detachedInfo) {
+        // Check if preload script loaded correctly
+        if (typeof window.sumerian === 'undefined') {
+            return (
+                <div style={{ 
+                    backgroundColor: '#0a0a0a', 
+                    color: '#ff4444', 
+                    height: '100vh', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center',
+                    flexDirection: 'column',
+                    gap: '10px'
+                }}>
+                    <div>Error: Preload script not loaded</div>
+                    <div style={{ fontSize: '12px', color: '#888' }}>window.sumerian is undefined</div>
+                </div>
+            );
+        }
         return (
             <DetachedPanelWindow
                 panelType={detachedInfo.panelType}

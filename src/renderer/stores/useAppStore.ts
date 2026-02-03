@@ -97,6 +97,10 @@ export const useAppStore = create<AppState>()(
                         isTerminalVisible: true
                     }
                 }));
+                // Broadcast to detached windows
+                if (typeof window !== 'undefined' && window.sumerian?.state?.broadcast) {
+                    window.sumerian.state.broadcast('terminal:create', { id, name });
+                }
             },
             closeTerminal: (id) => {
                 set((state) => {
@@ -107,9 +111,18 @@ export const useAppStore = create<AppState>()(
                     }
                     return { ui: { ...state.ui, terminals, activeTerminalId } };
                 });
+                // Broadcast to detached windows
+                if (typeof window !== 'undefined' && window.sumerian?.state?.broadcast) {
+                    window.sumerian.state.broadcast('terminal:close', { id });
+                }
             },
-            setActiveTerminal: (id) =>
-                set((state) => ({ ui: { ...state.ui, activeTerminalId: id } })),
+            setActiveTerminal: (id) => {
+                set((state) => ({ ui: { ...state.ui, activeTerminalId: id } }));
+                // Broadcast to detached windows
+                if (typeof window !== 'undefined' && window.sumerian?.state?.broadcast) {
+                    window.sumerian.state.broadcast('terminal:active', { id });
+                }
+            },
             toggleCommandPalette: () =>
                 set((state) => ({ ui: { ...state.ui, isCommandPaletteOpen: !state.ui.isCommandPaletteOpen } })),
             toggleShortcutsHelp: () =>
@@ -867,8 +880,39 @@ export const useAppStore = create<AppState>()(
                 }
             },
 
+            // Lightweight initialization for detached windows - only sync state, don't spawn CLI
+            initDetached: async () => {
+                try {
+                    const sharedState = await window.sumerian.state.getAll();
+                    if (sharedState?.editor) {
+                        set((state) => ({ editor: { ...state.editor, ...sharedState.editor } }));
+                    }
+                    if (sharedState?.project) {
+                        set((state) => ({ project: { ...state.project, ...sharedState.project } }));
+                    }
+                    if (sharedState?.agent) {
+                        set((state) => ({ 
+                            agent: { 
+                                ...state.agent, 
+                                ...sharedState.agent,
+                                pinnedFiles: sharedState.agent.pinnedFiles || state.agent.pinnedFiles || [],
+                                toolActions: sharedState.agent.toolActions || state.agent.toolActions || [],
+                                loreFiles: sharedState.agent.loreFiles || state.agent.loreFiles || [],
+                                messages: sharedState.agent.messages || state.agent.messages || [],
+                                availableModels: sharedState.agent.availableModels || state.agent.availableModels || [],
+                            } 
+                        }));
+                    }
+                } catch (error) {
+                    console.error('initDetached error:', error);
+                }
+            },
+
             // Store Initialization
             init: async () => {
+                // Check if this is a detached window (has ?detached= in URL)
+                const isDetachedWindow = window.location.search.includes('detached=');
+                
                 try {
                     // Load shared state from main process (for detached windows)
                     const sharedState = await window.sumerian.state.getAll();
@@ -892,17 +936,30 @@ export const useAppStore = create<AppState>()(
                             } 
                         }));
                     }
+                    // Load UI state (terminals) for detached windows
+                    if (sharedState?.ui) {
+                        set((state) => ({
+                            ui: {
+                                ...state.ui,
+                                terminals: sharedState.ui.terminals || state.ui.terminals,
+                                activeTerminalId: sharedState.ui.activeTerminalId || state.ui.activeTerminalId,
+                            }
+                        }));
+                    }
 
-                    // Re-open persisted project to spawn CLI
-                    const currentState = get();
-                    const persistedRootPath = currentState?.project?.rootPath;
-                    if (persistedRootPath) {
-                        await window.sumerian.project.open(persistedRootPath);
-                        const store = get();
-                        store.refreshFileTree();
-                        store.refreshLore();
-                        store.refreshModels();
-                        window.sumerian.files.watch(persistedRootPath);
+                    // Only re-open project in main window, not in detached windows
+                    // Detached windows should only sync state, not spawn new CLI processes
+                    if (!isDetachedWindow) {
+                        const currentState = get();
+                        const persistedRootPath = currentState?.project?.rootPath;
+                        if (persistedRootPath) {
+                            await window.sumerian.project.open(persistedRootPath);
+                            const store = get();
+                            store.refreshFileTree();
+                            store.refreshLore();
+                            store.refreshModels();
+                            window.sumerian.files.watch(persistedRootPath);
+                        }
                     }
                 } catch (error) {
                     console.error('Init error:', error);

@@ -1,4 +1,4 @@
-import { BrowserWindow, screen } from 'electron';
+import { BrowserWindow, screen, app } from 'electron';
 import path from 'node:path';
 import { PanelType } from '../../renderer/types/layout';
 
@@ -14,6 +14,11 @@ declare const MAIN_WINDOW_VITE_NAME: string;
 export class WindowManager {
   private detachedWindows: Map<string, DetachedWindow> = new Map();
   private mainWindow: BrowserWindow | null = null;
+  private preloadPath: string | null = null;
+
+  setPreloadPath(preloadPath: string) {
+    this.preloadPath = preloadPath;
+  }
 
   setMainWindow(window: BrowserWindow) {
     this.mainWindow = window;
@@ -28,8 +33,14 @@ export class WindowManager {
 
     const defaultBounds = bounds || this.getDefaultBounds(panelType);
 
-    // Get preload path - use same path as main window
-    const preloadPath = path.join(__dirname, 'preload.cjs');
+    // Get preload path - use path set from main.ts where __dirname is correct
+    console.log('[WindowManager] detachPanel called, preloadPath:', this.preloadPath);
+    if (!this.preloadPath) {
+      console.error('[WindowManager] ERROR: preloadPath not set!');
+      throw new Error('WindowManager: preloadPath not set. Call setPreloadPath() from main.ts first.');
+    }
+    const preloadPath = this.preloadPath;
+    console.log('[WindowManager] Creating detached window with preload:', preloadPath);
 
     const window = new BrowserWindow({
       x: defaultBounds.x,
@@ -44,6 +55,7 @@ export class WindowManager {
         preload: preloadPath,
         contextIsolation: true,
         nodeIntegration: false,
+        sandbox: false, // Disable sandbox to fix "Failed to initialize sandbox" errors
       },
     });
 

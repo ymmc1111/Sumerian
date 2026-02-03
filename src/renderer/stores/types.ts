@@ -284,6 +284,7 @@ export interface AppState {
     refreshModels: () => Promise<void>;
     forceRefreshModels: () => Promise<void>;
     init: () => Promise<void>;
+    initDetached: () => Promise<void>;
 
     // Workforce Actions
     spawnAgent: (persona: AgentInstance['persona'], task: string, workingDir?: string) => Promise<string>;

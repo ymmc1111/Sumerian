@@ -111,6 +111,10 @@ export function setupHandlers() {
         return true;
     });
 
+    ipcMain.handle('terminal:exists', async (_event, { id }: { id: string }) => {
+        return terminalManager.has(id);
+    });
+
     ipcMain.handle('cli:send', async (_event, { content, braveMode }: { content: string, braveMode: boolean }) => {
         const cliManager = getActiveCLIManager();
         if (!cliManager) {

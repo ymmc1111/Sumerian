@@ -19,6 +19,7 @@ interface TerminalInstanceProps {
 const TerminalInstance: React.FC<TerminalInstanceProps> = ({ id, isActive }) => {
     const terminalRef = useRef<HTMLDivElement>(null);
     const xtermRef = useRef<XTerm | null>(null);
+    const fitAddonRef = useRef<FitAddon | null>(null);
     const [menuPos, setMenuPos] = useState<{ x: number, y: number } | null>(null);
     const { project } = useAppStore();
 
@@ -70,6 +71,7 @@ const TerminalInstance: React.FC<TerminalInstanceProps> = ({ id, isActive }) => 
         });
 
         const fitAddon = new FitAddon();
+        fitAddonRef.current = fitAddon;
         term.loadAddon(fitAddon);
         term.loadAddon(new WebLinksAddon());
 
@@ -78,7 +80,7 @@ const TerminalInstance: React.FC<TerminalInstanceProps> = ({ id, isActive }) => 
 
         xtermRef.current = term;
 
-        // Initialize terminal via IPC
+        // Create terminal if it doesn't exist (broadcast approach handles multi-window)
         window.sumerian.terminal.create(id, project.rootPath || './');
 
         const cleanupData = window.sumerian.terminal.onData(id, (data: string) => {
@@ -117,11 +119,17 @@ const TerminalInstance: React.FC<TerminalInstanceProps> = ({ id, isActive }) => 
         if (isActive && xtermRef.current) {
             xtermRef.current.focus();
             // Refit on activation
-            const fitAddon = new FitAddon();
-            xtermRef.current.loadAddon(fitAddon);
-            setTimeout(() => fitAddon.fit(), 10);
+            if (fitAddonRef.current) {
+                setTimeout(() => {
+                    fitAddonRef.current?.fit();
+                    // Send resize to trigger terminal refresh
+                    if (xtermRef.current && xtermRef.current.cols && xtermRef.current.rows) {
+                        window.sumerian.terminal.resize(id, xtermRef.current.cols, xtermRef.current.rows);
+                    }
+                }, 50);
+            }
         }
-    }, [isActive]);
+    }, [isActive, id]);
 
     return (
         <div
@@ -158,6 +166,7 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ slotId = 'D' }) => {
                 panelType="terminal"
                 slotId={slotId}
                 icon={<Terminal className="w-4 h-4" />}
+                canDetach={false}
             />
             
             {/* Terminal Tabs */}

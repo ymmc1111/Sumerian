@@ -23,11 +23,10 @@ export const DetachedPanelWindow: React.FC<DetachedPanelWindowProps> = ({
   panelType,
   windowId,
 }) => {
-  const { init, project } = useAppStore();
+  const { init } = useAppStore();
 
   useEffect(() => {
     // Initialize the app store for this window (loads from shared state)
-    // This happens asynchronously in the background while the UI renders
     init().catch((error: unknown) => {
       console.error('Failed to initialize detached window:', error);
     });
@@ -128,6 +127,40 @@ export const DetachedPanelWindow: React.FC<DetachedPanelWindowProps> = ({
       });
     });
 
+    // Terminal state sync
+    const cleanupTerminalCreate = window.sumerian.state.onSync('terminal:create', (data: { id: string; name: string }) => {
+      const { ui } = useAppStore.getState();
+      const exists = ui.terminals.some(t => t.id === data.id);
+      if (!exists) {
+        useAppStore.setState({
+          ui: {
+            ...ui,
+            terminals: [...ui.terminals, { id: data.id, name: data.name }],
+            activeTerminalId: data.id
+          }
+        });
+      }
+    });
+
+    const cleanupTerminalClose = window.sumerian.state.onSync('terminal:close', (data: { id: string }) => {
+      const { ui } = useAppStore.getState();
+      const terminals = ui.terminals.filter(t => t.id !== data.id);
+      let activeTerminalId = ui.activeTerminalId;
+      if (activeTerminalId === data.id) {
+        activeTerminalId = terminals.length > 0 ? terminals[terminals.length - 1].id : null;
+      }
+      useAppStore.setState({
+        ui: { ...ui, terminals, activeTerminalId }
+      });
+    });
+
+    const cleanupTerminalActive = window.sumerian.state.onSync('terminal:active', (data: { id: string }) => {
+      const { ui } = useAppStore.getState();
+      useAppStore.setState({
+        ui: { ...ui, activeTerminalId: data.id }
+      });
+    });
+
     return () => {
       cleanupEditorContent();
       cleanupEditorClose();
@@ -137,6 +170,9 @@ export const DetachedPanelWindow: React.FC<DetachedPanelWindowProps> = ({
       cleanupAgentStatus();
       cleanupAgentClear();
       cleanupAgentSessionLoaded();
+      cleanupTerminalCreate();
+      cleanupTerminalClose();
+      cleanupTerminalActive();
     };
   }, [init]);
 

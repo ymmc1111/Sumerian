@@ -62,6 +62,9 @@ const createWindow = () => {
   
   // Register main window with window manager
   windowManager.setMainWindow(mainWindow);
+  
+  // Set preload path for detached windows (must use __dirname from here, not from WindowManager)
+  windowManager.setPreloadPath(path.join(__dirname, 'preload.cjs'));
 };
 
 // This method will be called when Electron has finished

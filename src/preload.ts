@@ -96,6 +96,7 @@ contextBridge.exposeInMainWorld('sumerian', {
         write: (id: string, data: string) => ipcRenderer.invoke('terminal:write', { id, data }),
         resize: (id: string, cols: number, rows: number) => ipcRenderer.invoke('terminal:resize', { id, cols, rows }),
         kill: (id: string) => ipcRenderer.invoke('terminal:kill', { id }),
+        exists: (id: string) => ipcRenderer.invoke('terminal:exists', { id }),
         onData: (id: string, callback: (data: string) => void) => {
             const channel = `terminal:data:${id}`;
             const listener = (_event: any, value: string) => callback(value);

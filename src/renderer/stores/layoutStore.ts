@@ -10,6 +10,7 @@ import {
   PanelStack,
   PanelType,
 } from '../types/layout';
+import { useAppStore } from './useAppStore';
 
 // Default panel configurations
 export const PANEL_CONFIGS: Record<PanelType, PanelConfig> = {
@@ -30,7 +31,7 @@ export const PANEL_CONFIGS: Record<PanelType, PanelConfig> = {
   agent: {
     type: 'agent',
     defaultSlot: 'C',
-    constraints: { minWidth: 320, maxWidth: 600, minHeight: 200, maxHeight: Infinity },
+    constraints: { minWidth: 320, maxWidth: Infinity, minHeight: 200, maxHeight: Infinity },
     canCollapse: true,
     canStack: true,
   },
@@ -286,6 +287,45 @@ export const useLayoutStore = create<LayoutStore>()(
       // Detached panels (multi-monitor)
       detachPanel: async (panelType) => {
         try {
+          // Sync all relevant state BEFORE creating the detached window
+          // This ensures the new window loads with current state, not defaults
+          const appState = useAppStore.getState();
+          
+          // Sync project state
+          await window.sumerian.state.set('project', {
+            rootPath: appState.project.rootPath,
+            fileTree: appState.project.fileTree,
+          });
+          
+          // Sync editor state
+          await window.sumerian.state.set('editor', {
+            activeFileId: appState.editor.activeFileId,
+            openFiles: appState.editor.openFiles,
+            groups: appState.editor.groups,
+            activeGroupId: appState.editor.activeGroupId,
+          });
+          
+          // Sync agent state
+          await window.sumerian.state.set('agent', {
+            messages: appState.agent.messages,
+            status: appState.agent.status,
+            braveMode: appState.agent.braveMode,
+            mode: appState.agent.mode,
+            model: appState.agent.model,
+            sessionId: appState.agent.sessionId,
+            usage: appState.agent.usage,
+            pinnedFiles: appState.agent.pinnedFiles,
+            toolActions: appState.agent.toolActions,
+            loreFiles: appState.agent.loreFiles,
+            availableModels: appState.agent.availableModels,
+          });
+          
+          // Sync UI/terminal state
+          await window.sumerian.state.set('ui', {
+            terminals: appState.ui.terminals,
+            activeTerminalId: appState.ui.activeTerminalId,
+          });
+
           const windowId = await window.sumerian.window.detachPanel(panelType);
           if (windowId) {
             set({
