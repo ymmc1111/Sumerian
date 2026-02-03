@@ -39,6 +39,7 @@ export class CLIManager {
     private loopActive: boolean = false;
     private workforceSync: WorkforceSync;
     private mcpConfigPath: string | null = null;
+    private autopilotMode: boolean = false;
 
     constructor(projectRoot: string, events: CLIManagerEvents) {
         this.events = events;
@@ -175,11 +176,16 @@ export class CLIManager {
 
         const args = [...this.config.args];
 
-        // Use --continue for subsequent messages to maintain context
+        // Use --session-id for subsequent messages if we have a known session ID
+        // Otherwise fall back to --continue for implicit session resumption
         // For main agent, use isFirstMessage; for spawned agents, check message history
         const isFirst = isMainAgent ? this.isFirstMessage : (!agent || agent.messageHistory.length === 0);
         if (!isFirst) {
-            args.push('--continue');
+            if (agent?.sessionId) {
+                args.push('--session-id', agent.sessionId);
+            } else {
+                args.push('--continue');
+            }
         }
         if (isMainAgent) {
             this.isFirstMessage = false;
@@ -477,6 +483,22 @@ export class CLIManager {
                 }, 2000); // 2s delay to allow final output to be processed
             }
 
+            // If autopilot mode is active AND no loop is active AND no promise was detected,
+            // trigger an automatic continuation if the agent hasn't signaled completion.
+            if (this.autopilotMode && !this.loopActive && agentId === this.mainAgentId) {
+                // We check the accumulated text for common completion phrases if no promise pattern is set
+                const text = this.parser.getAccumulatedText().toLowerCase();
+                const completionPhrases = ['task complete', 'i have finished', 'all done', 'done with the task'];
+                const seemsDone = completionPhrases.some(phrase => text.includes(phrase));
+
+                if (!seemsDone) {
+                    console.log('[CLIManager] Autopilot: Triggering continuation');
+                    setTimeout(() => {
+                        this.sendMessage('Continue with the next step.');
+                    }, 1500);
+                }
+            }
+
             // If loop is active and promise wasn't detected, continue loop
             if (this.loopActive) {
                 setTimeout(() => this.runLoopIteration(), 1000); // 1s delay between iterations
@@ -496,6 +518,14 @@ export class CLIManager {
 
         this.parser.on('raw', (line: string) => {
             console.log(`[CLIManager] Raw Parser Output: ${line}`);
+        });
+
+        this.parser.on('sessionId', (sessionId: string) => {
+            console.log('[CLIManager] Parser: sessionId', sessionId);
+            const agent = this.agentPool.get(this.currentAgentId);
+            if (agent) {
+                agent.sessionId = sessionId;
+            }
         });
     }
 
@@ -548,7 +578,7 @@ export class CLIManager {
             const timeoutId = setTimeout(() => {
                 console.warn('[CLIManager] Model refresh timed out, killing process');
                 child.kill('SIGKILL');
-            }, 10000);
+            }, 30000);
 
             child.stdout.on('data', (data) => {
                 stdout += data.toString();
@@ -698,6 +728,11 @@ export class CLIManager {
 
     public setDisallowedTools(tools: string[]): void {
         this.config.disallowedTools = tools.length > 0 ? tools : undefined;
+    }
+
+    public setAutopilotMode(enabled: boolean): void {
+        this.autopilotMode = enabled;
+        console.log('[CLIManager] Autopilot mode set to:', enabled);
     }
 
     public getWorkforceSync(): WorkforceSync {

@@ -6,6 +6,7 @@ import {
     isAssistantMessage,
     isResultMessage,
     isErrorMessage,
+    isSystemMessage,
     isTextContent,
     isToolUseContent,
     isToolResultContent,
@@ -61,8 +62,10 @@ export class CLIOutputParser extends EventEmitter {
             this.handleResult(msg);
         } else if (isErrorMessage(msg)) {
             this.emit('error', msg.error.type, msg.error.message);
+        } else if (isSystemMessage(msg) && msg.subtype === 'init' && msg.session_id) {
+            this.emit('sessionId', msg.session_id);
         }
-        // Ignore system, user, status messages for now
+        // Ignore other system, user, status messages for now
     }
 
     private handleAssistant(msg: AssistantMessage): void {

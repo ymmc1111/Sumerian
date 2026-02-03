@@ -52,6 +52,7 @@ export interface AgentProcess {
     task: string;
     resourceInterval?: NodeJS.Timeout;
     pid?: number;
+    sessionId?: string; // Claude CLI session ID for resumption
 }
 
 export interface AgentCompletionReport {
